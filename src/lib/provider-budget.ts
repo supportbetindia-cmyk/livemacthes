@@ -1,6 +1,7 @@
 // Server/worker-only admission control. Public Firebase rules deny access to this subtree.
-import { getApps, initializeApp, applicationDefault } from "firebase-admin/app";
+import { getApps, initializeApp } from "firebase-admin/app";
 import { getDatabase } from "firebase-admin/database";
+import { firebaseCredential } from "./firebase-credential.ts";
 
 export type RequestSource = "web" | "worker";
 type Slot = { web: number; worker: number };
@@ -40,7 +41,7 @@ async function reserveBatch(source: RequestSource) {
 
   // A named Admin app avoids conflicting with the worker's default live-feed app.
   const appName = "sportmonks-budget";
-  const app = getApps().find((a) => a.name === appName) ?? initializeApp({ credential: applicationDefault(), databaseURL }, appName);
+  const app = getApps().find((a) => a.name === appName) ?? initializeApp({ credential: firebaseCredential(), databaseURL }, appName);
   const budget = getDatabase(app).ref("_private/sportmonksBudget");
   const nowHour = Math.floor(Date.now() / 3600000);
   // Set by the last (committed) run of `update`; Firebase may call it several times before committing.

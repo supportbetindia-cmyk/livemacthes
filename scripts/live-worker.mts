@@ -13,10 +13,11 @@ type Live = Pick<Match, "score" | "status" | "matchStarted" | "matchEnded">;
 
 async function connect() {
   if (!databaseURL) return null;
-  const { initializeApp, applicationDefault } = await import("firebase-admin/app");
+  const { initializeApp } = await import("firebase-admin/app");
+  const { firebaseCredential } = await import("../src/lib/firebase-credential.ts");
   const { getDatabase } = await import("firebase-admin/database");
-  // Credentials: GOOGLE_APPLICATION_CREDENTIALS = path to the service-account JSON from Firebase console.
-  return getDatabase(initializeApp({ credential: applicationDefault(), databaseURL })).ref("live");
+  // Credentials: FIREBASE_SERVICE_ACCOUNT (JSON or base64) or GOOGLE_APPLICATION_CREDENTIALS (file path).
+  return getDatabase(initializeApp({ credential: firebaseCredential(), databaseURL })).ref("live");
 }
 
 const live = await connect();
