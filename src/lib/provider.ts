@@ -30,7 +30,13 @@ export type Scorecard = {
   batting: { batsman: { name: string; id?: string }; "dismissal-text"?: string; r: number; b: number; "4s": number; "6s": number; sr: number }[];
   bowling: { bowler: { name: string; id?: string }; o: number; m: number; r: number; w: number; eco: number }[];
 }[];
-export type Ranking = { format: "TEST" | "ODI" | "T20I"; gender: "men" | "women"; teams: { position: number; name: string; img?: string; matches: number; points: number; rating: number }[] };
+export type LineupPlayer = { id: string; name: string; img?: string; role?: string; captain: boolean; keeper: boolean };
+export type MatchInfo = {
+  toss?: { team: string; elected: string }; // elected: "batting" | "bowling"
+  playerOfMatch?: { id: string; name: string; img?: string };
+  lineups: { team: string; players: LineupPlayer[] }[]; // empty until the teams are announced
+};
+export type Ranking ={ format: "TEST" | "ODI" | "T20I"; gender: "men" | "women"; teams: { position: number; name: string; img?: string; matches: number; points: number; rating: number }[] };
 export type League = { id: string; name: string; code: string; seasonId: string; img?: string };
 export type PlayerStat = {
   id?: string; name: string; img?: string; team?: string; teamImg?: string; matches: number;
@@ -76,10 +82,14 @@ type SmFixture = {
     batsman?: SmPlayer; result?: { name: string; is_wicket?: boolean; out?: boolean }; catchstump?: SmPlayer; bowler?: SmPlayer; runoutby?: SmPlayer;
   }[];
   bowling?: { team_id: number; scoreboard: string; sort: number; overs: number; medians: number; runs: number; wickets: number; rate: number; bowler?: SmPlayer }[];
+  toss_won_team_id?: number | null;
+  elected?: string | null;
+  manofmatch?: SmPlayer & { id: number };
+  lineup?: (SmPlayer & { id: number; position?: { name: string }; lineup: { team_id: number; captain: boolean; wicketkeeper: boolean; substitution: boolean } })[];
 };
 
 const BASIC = "localteam,visitorteam,runs,venue,league,season";
-const SCORECARD = `${BASIC},batting.batsman,batting.result,batting.catchstump,batting.bowler,batting.runoutby,bowling.bowler`;
+const SCORECARD = `${BASIC},batting.batsman,batting.result,batting.catchstump,batting.bowler,batting.runoutby,bowling.bowler,lineup,manofmatch`;
 
 // ---------- Mapping ----------
 
@@ -156,6 +166,24 @@ function toScorecard(f: SmFixture): Scorecard {
   }));
 }
 
+function toInfo(f: SmFixture): MatchInfo {
+  const teamName = (id?: number | null) => (id === f.localteam.id ? f.localteam.name : id === f.visitorteam.id ? f.visitorteam.name : undefined);
+  const tossTeam = teamName(f.toss_won_team_id);
+  const mom = f.manofmatch;
+  return {
+    toss: tossTeam && f.elected ? { team: tossTeam, elected: f.elected } : undefined,
+    playerOfMatch: mom && { id: String(mom.id), name: mom.fullname, img: mom.image_path },
+    lineups: [f.localteam, f.visitorteam]
+      .map((t) => ({
+        team: t.name,
+        players: (f.lineup ?? [])
+          .filter((p) => p.lineup.team_id === t.id && !p.lineup.substitution)
+          .map((p) => ({ id: String(p.id), name: p.fullname, img: p.image_path, role: p.position?.name, captain: p.lineup.captain, keeper: p.lineup.wicketkeeper })),
+      }))
+      .filter((l) => l.players.length > 0),
+  };
+}
+
 // Series summary (name, date range, matches per format) from its matches.
 export function seriesFromMatches(id: string, ms: Match[]): Series {
   const dates = ms.map((m) => m.date).sort();
@@ -175,10 +203,10 @@ export async function fetchMatches() {
   return fs.map(toMatch);
 }
 
-// One request with everything the match page needs (score header + full scorecard).
+// One request with everything the match page needs (score header, scorecard, toss, Playing XI).
 export async function fetchMatchDetail(id: string) {
   const f = await sm<SmFixture>(`fixtures/${id}`, { include: SCORECARD });
-  return { match: toMatch(f), scorecard: toScorecard(f) };
+  return { match: toMatch(f), scorecard: toScorecard(f), info: toInfo(f) };
 }
 
 export async function fetchSeries(id: string) {

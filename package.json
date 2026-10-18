@@ -7,6 +7,7 @@
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
+    "test": "node --test --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/lib/*.test.ts",
     "live-worker": "node --env-file-if-exists=.env.local scripts/live-worker.mts"
   },
   "dependencies": {
