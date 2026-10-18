@@ -6,5 +6,6 @@ import { optimizable } from "@/lib/images";
 export function Logo({ src, size, round = true, className = "" }: { src?: string; size: number; round?: boolean; className?: string }) {
   const box = `shrink-0 ${round ? "rounded-full" : "rounded-[2px]"} ${className}`;
   if (!src) return <span className={`${box} bg-raised`} style={{ width: size, height: size }} />;
-  return <Image src={src} alt="" width={size} height={size} unoptimized={!optimizable(src)} className={`${box} object-contain`} />;
+  // Explicit width + height: Tailwind's base `img { height: auto }` would otherwise change only one side (Next warns).
+  return <Image src={src} alt="" width={size} height={size} unoptimized={!optimizable(src)} className={`${box} object-contain`} style={{ width: size, height: size }} />;
 }

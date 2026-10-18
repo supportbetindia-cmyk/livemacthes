@@ -12,7 +12,26 @@ function positiveInteger(value: string | undefined, fallback: number) {
   return n;
 }
 
+// Requests reserved in Firebase but not used yet by this server process. Reserving in batches means one
+// Firebase transaction per BATCH API calls instead of one per call. Unused reservations stay counted
+// (conservative: the shared cap can only be under-used, never exceeded).
+const leases: Record<RequestSource, number> = { web: 0, worker: 0 };
+// At most one reservation transaction in flight per source: parallel API calls queue behind it instead of
+// running competing transactions on the same counter (which made them retry until they timed out).
+const inflight: Partial<Record<RequestSource, Promise<void>>> = {};
+
 export async function reserveProviderRequest(source: RequestSource) {
+  while (leases[source] === 0) {
+    inflight[source] ??= reserveBatch(source).finally(() => {
+      inflight[source] = undefined;
+    });
+    await inflight[source]; // a failure rejects every waiter: no request ever bypasses the budget
+  }
+  leases[source]--;
+}
+
+async function reserveBatch(source: RequestSource) {
+  const batch = positiveInteger(process.env.SPORTMONKS_BUDGET_BATCH, 10);
   const limit = positiveInteger(process.env.SPORTMONKS_DAILY_LIMIT, 2000);
   const reserve = positiveInteger(process.env.SPORTMONKS_WORKER_RESERVE, 1000);
   if (reserve >= limit) throw new Error("Sportmonks worker reserve must be smaller than the daily limit");
@@ -24,6 +43,8 @@ export async function reserveProviderRequest(source: RequestSource) {
   const app = getApps().find((a) => a.name === appName) ?? initializeApp({ credential: applicationDefault(), databaseURL }, appName);
   const budget = getDatabase(app).ref("_private/sportmonksBudget");
   const nowHour = Math.floor(Date.now() / 3600000);
+  // Set by the last (committed) run of `update`; Firebase may call it several times before committing.
+  let granted = 0;
   const update = (current: unknown): Budget | undefined => {
     let state: Budget = { hour: nowHour, slots: {} };
     if (current !== null) {
@@ -53,24 +74,29 @@ export async function reserveProviderRequest(source: RequestSource) {
       worker += slot.worker;
       total += slot.web + slot.worker;
     }
-    if (total >= limit || (source === "web" ? web >= limit - reserve : worker >= reserve)) return undefined;
+    // Reserve up to `batch` requests, never more than what is left for this source or in total.
+    const left = Math.min(limit - total, source === "web" ? limit - reserve - web : reserve - worker);
+    granted = Math.min(batch, left);
+    if (granted <= 0) return undefined;
     const key = String(hour);
     const slot = slots[key] ?? { web: 0, worker: 0 };
-    slots[key] = { ...slot, [source]: slot[source] + 1 };
+    slots[key] = { ...slot, [source]: slot[source] + granted };
     return { hour, slots };
   };
-
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const result = await Promise.race([
       budget.transaction(update, undefined, false),
-      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Budget timeout")), 5000); }),
+      // 15s: the first Firebase connection from a cold server can take several seconds on its own.
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Budget timeout")), 15000); }),
     ]);
-    if (!result.committed) throw new Error("Sportmonks request budget exhausted");
-  } catch {
+    if (!result.committed || granted <= 0) throw new Error("Sportmonks request budget exhausted");
+    leases[source] += granted;
+  } catch (cause) {
     // Never bypass the budget on database errors, malformed state or timeouts.
     // A late transaction may consume a reservation, but must never start a fetch.
-    throw new Error("Cricket data request limit reached or shared budget unavailable. Try again later.");
+    // `cause` keeps the real reason (timeout, permission, exhausted…) in server logs.
+    throw new Error("Cricket data request limit reached or shared budget unavailable. Try again later.", { cause });
   } finally {
     clearTimeout(timer);
   }
