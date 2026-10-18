@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LiveScore
 
-## Getting Started
-
-First, run the development server:
+Live cricket scores, fixtures, series, teams and news in English and Hindi. Built with Next.js 16.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local   # fill in what you have; everything is optional
+npm install
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Cricket data comes from the [Sportmonks Cricket API](https://www.sportmonks.com/cricket-api/): set `SPORTMONKS_API_TOKEN`. All provider code is in `src/lib/provider.ts`; pages only use its types.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Real-time scores (Firebase)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Without Firebase, live pages refresh every 15 seconds. With it, scores update within about 1 second:
 
-## Learn More
+```
+cricket API ──poll──▶ live-worker ──changed scores only──▶ Firebase RTDB /live/{matchId} ──push──▶ browsers
+```
 
-To learn more about Next.js, take a look at the following resources:
+1. Create a project at https://console.firebase.google.com and add a **Realtime Database**.
+2. In the database **Rules** tab, paste the contents of `database.rules.json` (public read of `/live`, no public writes).
+3. Copy the database URL (`https://<project>-default-rtdb.<region>.firebasedatabase.app`) into `NEXT_PUBLIC_FIREBASE_DATABASE_URL`.
+4. Go to Project settings → Service accounts → **Generate new private key**. Save the file as `firebase-service-account.json` in the project root (it's gitignored) and set `GOOGLE_APPLICATION_CREDENTIALS=./firebase-service-account.json`.
+5. Run the worker next to the site: `npm run live-worker`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Notes:
+- The worker is a long-running process, so it can't run on Vercel. Run it on a small VPS, Railway, Render or Fly.io, or on your PC while testing.
+- Each poll is one API call: `86400 / LIVE_POLL_SECONDS` calls per day (10s ≈ 8,640/day). Check your Sportmonks plan's rate limit.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Own news articles (Sanity)
 
-## Deploy on Vercel
+Set `NEXT_PUBLIC_SANITY_PROJECT_ID`. The editor (Sanity Studio) is in `studio/`: `npm --prefix studio run dev` (localhost:3333), `npm --prefix studio run deploy` to host it.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Adding a language
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Add `src/app/[lang]/dictionaries/xx.json`, then register it in `dictionaries.ts` and `src/lib/i18n.ts`.

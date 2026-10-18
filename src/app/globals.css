@@ -1,26 +1,170 @@
 @import "tailwindcss";
 
+/* Theme is set on <html data-theme="light|dark"> by the inline script in the layout. */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #0b1730;
+  --card: #ffffff;
+  --raised: #f8fafc; /* card header band, hover rows */
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --accent: #2563eb;
+  --link: #2563eb;
+  --nav: #0b1730;
+  --brand: #dc2626;
+  --nav-border: transparent;
+  --shadow: 0 1px 2px rgb(16 24 40 / 0.05);
+}
+
+/* Warm charcoal: dark grey with a slight warm tint (no blue, not pure black). */
+[data-theme="dark"] {
+  --background: #161514;
+  --foreground: #ecebe8;
+  --card: #1f1e1c;
+  --raised: #282725;
+  --muted: #a3a09a;
+  --border: #33312e;
+  --accent: #3ccf87;
+  --link: #f2b04b;
+  --nav: #1c1b19;
+  --brand: #f87171;
+  --nav-border: #2e2c29;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+  color-scheme: dark;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-card: var(--card);
+  --color-raised: var(--raised);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-link: var(--link);
+  --color-nav: var(--nav);
+  --color-brand: var(--brand);
+  --color-nav-border: var(--nav-border);
+  --shadow-card: var(--shadow);
+  --font-sans: var(--font-inter), var(--font-devanagari), system-ui, sans-serif;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Match card base text. In a layer so Tailwind size/colour utilities on child elements still win. */
+@layer components {
+  .match-card {
+    font-family: var(--font-inter), Inter, var(--font-devanagari), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 18px;
+    color: var(--foreground);
+  }
+  /* Match cards inherit the selected theme text colour. */
+  [data-theme="dark"] .match-card {
+    color: var(--foreground);
+  }
+
+  /* Card surface: soft shadow in light mode; shadows vanish on charcoal, so dark mode uses a hairline border. */
+  .surface {
+    border-radius: 0.75rem;
+    border: 1px solid var(--border);
+    background: var(--card);
+    box-shadow: 0 2px 6px rgb(11 23 48 / 0.04);
+  }
+  [data-theme="dark"] .surface {
+    border-color: var(--border);
+    box-shadow: none;
+  }
+  .surface-hover {
+    transition: box-shadow 0.15s, border-color 0.15s;
+  }
+  .surface-hover:hover {
+    border-color: color-mix(in srgb, var(--link) 30%, var(--border));
+    box-shadow: 0 6px 18px rgb(11 23 48 / 0.08);
+  }
+  [data-theme="dark"] .surface-hover:hover {
+    border-color: color-mix(in srgb, var(--foreground) 22%, transparent);
+  }
+
+  /* Pill tabs / filters / shortcut links. Selected state comes from aria-current or aria-pressed. */
+  .chip {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 0.375rem;
+    white-space: nowrap;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border);
+    background: var(--card);
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--muted);
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .chip:hover,
+  .chip[aria-current],
+  .chip[aria-pressed="true"] {
+    color: var(--foreground);
+    border-color: color-mix(in srgb, var(--foreground) 25%, transparent);
+  }
+  .chip[aria-current],
+  .chip[aria-pressed="true"] {
+    color: var(--link);
+    border-color: color-mix(in srgb, var(--link) 30%, var(--border));
+    background: color-mix(in srgb, var(--link) 7%, var(--card));
+    font-weight: 600;
+    box-shadow: var(--shadow);
+  }
+
+  /* Scorecards and points tables. First column is left-aligned, numbers right-aligned. */
+  .data-table {
+    width: 100%;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  .data-table th {
+    background: var(--raised);
+    padding: 0.5rem 0.75rem;
+    text-align: right;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .data-table td {
+    border-top: 1px solid var(--border);
+    padding: 0.625rem 0.75rem;
+    text-align: right;
+  }
+  .data-table th:first-child,
+  .data-table td:first-child {
+    text-align: left;
+  }
+  /* Number columns stay compact on the right instead of spreading across wide screens. */
+  .data-table th:not(:first-child) {
+    width: 4.5rem;
+  }
+  .data-table td:first-child {
+    white-space: nowrap;
+  }
+  @media (max-width: 640px) {
+    .data-table th:not(:first-child) {
+      width: 2.75rem;
+    }
+    .data-table th,
+    .data-table td {
+      padding-inline: 0.5rem;
+    }
+  }
+  .data-table tbody tr:hover {
+    background: var(--raised);
+  }
 }
