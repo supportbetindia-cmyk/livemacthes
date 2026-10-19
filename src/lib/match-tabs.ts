@@ -1,7 +1,7 @@
 // Logic behind the match page tabs (Summary, Series Stats, News).
 // Plain functions on data we already fetched: no API calls, no React, so they are easy to test
 // (see match-tabs.test.ts, run with `npm test`).
-import type { PlayerStat, Scorecard } from "./provider";
+import type { Match, PlayerStat, Scorecard } from "./provider";
 import type { NewsItem } from "./news";
 
 // ---------- Summary tab ----------
@@ -45,4 +45,29 @@ export function newsAbout(items: NewsItem[], teams: string[]) {
   const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const pattern = new RegExp(`\\b(${teams.map(escape).join("|")})\\b`, "i");
   return items.filter((n) => pattern.test(`${n.title} ${n.excerpt ?? ""}`));
+}
+
+// ---------- Match info: Team Form + Head to Head ----------
+
+export type FormResult = "W" | "L" | "NR";
+
+const finishedExcept = (matches: Match[], currentId: string) =>
+  matches.filter((m) => m.matchEnded && m.id !== currentId).sort((a, b) => b.dateTimeGMT.localeCompare(a.dateTimeGMT));
+
+const resultFor = (m: Match, teamId: string): FormResult => (!m.winnerId ? "NR" : m.winnerId === teamId ? "W" : "L");
+
+// A team's last `n` finished matches (newest first), not counting the match being viewed.
+export function teamForm(matches: Match[], teamId: string, currentId: string, n = 5) {
+  return finishedExcept(matches, currentId).slice(0, n).map((match) => ({ match, result: resultFor(match, teamId) }));
+}
+
+// Last `n` finished meetings of teams a and b, and how many each won.
+export function headToHead(matches: Match[], a: string, b: string, currentId: string, n = 10) {
+  const both = (m: Match) => [a, b].every((id) => m.teamInfo?.some((t) => t.id === id));
+  const list = finishedExcept(matches.filter(both), currentId).slice(0, n);
+  return {
+    matches: list,
+    winsA: list.filter((m) => m.winnerId === a).length,
+    winsB: list.filter((m) => m.winnerId === b).length,
+  };
 }

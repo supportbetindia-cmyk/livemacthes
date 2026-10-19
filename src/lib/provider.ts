@@ -5,7 +5,7 @@
 import { reserveProviderRequest, type RequestSource } from "./provider-budget.ts";
 
 export type Score = { r: number; w: number; o: number; inning: string };
-export type TeamInfo = { name: string; shortname?: string; img?: string };
+export type TeamInfo = { id?: string; name: string; shortname?: string; img?: string };
 export type Match = {
   id: string;
   name: string;
@@ -21,6 +21,7 @@ export type Match = {
   matchStarted: boolean;
   matchEnded: boolean;
   seriesName?: string;
+  winnerId?: string; // team id of the winner; unset for no result / not finished
 };
 export type Series = { id: string; name: string; startDate: string; endDate: string; odi: number; t20: number; test: number; matches: number };
 export type Team = { id: string; name: string; genericFlag?: string; national: boolean };
@@ -34,7 +35,7 @@ export type LineupPlayer = { id: string; name: string; img?: string; role?: stri
 export type MatchInfo = {
   toss?: { team: string; elected: string }; // elected: "batting" | "bowling"
   playerOfMatch?: { id: string; name: string; img?: string };
-  lineups: { team: string; players: LineupPlayer[] }[]; // empty until the teams are announced
+  lineups: { team: string; players: LineupPlayer[]; bench: LineupPlayer[] }[]; // empty until the teams are announced
 };
 export type Ranking ={ format: "TEST" | "ODI" | "T20I"; gender: "men" | "women"; teams: { position: number; name: string; img?: string; matches: number; points: number; rating: number }[] };
 export type League = { id: string; name: string; code: string; seasonId: string; img?: string };
@@ -83,6 +84,7 @@ type SmFixture = {
   }[];
   bowling?: { team_id: number; scoreboard: string; sort: number; overs: number; medians: number; runs: number; wickets: number; rate: number; bowler?: SmPlayer }[];
   toss_won_team_id?: number | null;
+  winner_team_id?: number | null;
   elected?: string | null;
   manofmatch?: SmPlayer & { id: number };
   lineup?: (SmPlayer & { id: number; position?: { name: string }; lineup: { team_id: number; captain: boolean; wicketkeeper: boolean; substitution: boolean } })[];
@@ -124,12 +126,13 @@ function toMatch(f: SmFixture): Match {
     date: f.starting_at.slice(0, 10),
     dateTimeGMT: utc(f.starting_at),
     teams: [f.localteam.name, f.visitorteam.name],
-    teamInfo: [f.localteam, f.visitorteam].map((t) => ({ name: t.name, shortname: t.code, img: t.image_path })),
+    teamInfo: [f.localteam, f.visitorteam].map((t) => ({ id: String(t.id), name: t.name, shortname: t.code, img: t.image_path })),
     score: innings(f).map(({ label, run }) => ({ r: run.score, w: run.wickets, o: run.overs, inning: label })),
     series_id: String(f.season_id),
     seriesName: seriesTitle(f) || undefined,
     matchStarted: started,
     matchEnded: ENDED.includes(f.status),
+    winnerId: f.winner_team_id ? String(f.winner_team_id) : undefined,
   };
 }
 
@@ -174,12 +177,13 @@ function toInfo(f: SmFixture): MatchInfo {
     toss: tossTeam && f.elected ? { team: tossTeam, elected: f.elected } : undefined,
     playerOfMatch: mom && { id: String(mom.id), name: mom.fullname, img: mom.image_path },
     lineups: [f.localteam, f.visitorteam]
-      .map((t) => ({
-        team: t.name,
-        players: (f.lineup ?? [])
-          .filter((p) => p.lineup.team_id === t.id && !p.lineup.substitution)
-          .map((p) => ({ id: String(p.id), name: p.fullname, img: p.image_path, role: p.position?.name, captain: p.lineup.captain, keeper: p.lineup.wicketkeeper })),
-      }))
+      .map((t) => {
+        const squad = (f.lineup ?? []).filter((p) => p.lineup.team_id === t.id);
+        const player = (p: (typeof squad)[number]): LineupPlayer =>
+          ({ id: String(p.id), name: p.fullname, img: p.image_path, role: p.position?.name, captain: p.lineup.captain, keeper: p.lineup.wicketkeeper });
+        // Sportmonks marks squad players outside the XI as substitutions: that's the bench.
+        return { team: t.name, players: squad.filter((p) => !p.lineup.substitution).map(player), bench: squad.filter((p) => p.lineup.substitution).map(player) };
+      })
       .filter((l) => l.players.length > 0),
   };
 }
@@ -227,12 +231,29 @@ export async function fetchTeams(): Promise<Team[]> {
 }
 
 // A team's latest + upcoming matches: the API filters home and away separately, so ask for both and merge.
-export async function fetchTeamMatches(id: string) {
-  const side = (key: string) => sm<SmFixture[]>("fixtures", { [`filter[${key}]`]: id, include: BASIC, sort: "-starting_at", per_page: "12" });
+async function teamFixtures(id: string, perPage: number, params: Record<string, string> = {}) {
+  const side = (key: string) => sm<SmFixture[]>("fixtures", { [`filter[${key}]`]: id, include: BASIC, sort: "-starting_at", per_page: String(perPage), ...params });
   const [home, away] = await Promise.all([side("localteam_id"), side("visitorteam_id")]);
-  const latest = [...home, ...away].sort((a, b) => b.starting_at.localeCompare(a.starting_at)).slice(0, 12).map(toMatch);
+  return [...home, ...away].sort((a, b) => b.starting_at.localeCompare(a.starting_at)).slice(0, perPage).map(toMatch);
+}
+
+// A team's results of the past year, newest first (for Team Form). Without the date limit, a team with a
+// long upcoming tour would get mostly future fixtures back.
+export const fetchTeamResults = (id: string) => teamFixtures(id, 10, { "filter[starts_between]": `${day(-365)},${day(1)}` });
+
+export async function fetchTeamMatches(id: string) {
+  const latest = await teamFixtures(id, 12);
   // Next match first: upcoming soonest-first, then results newest-first.
   return [...latest.filter((m) => !m.matchStarted).reverse(), ...latest.filter((m) => m.matchStarted)];
+}
+
+// Matches between two teams, newest first. As with fetchTeamMatches, home/away are separate filters: ask both ways.
+// ponytail: 15 per side, enough for "last 10 meetings"; page through if a longer history is ever needed.
+export async function fetchHeadToHead(a: string, b: string) {
+  const side = (home: string, away: string) =>
+    sm<SmFixture[]>("fixtures", { "filter[localteam_id]": home, "filter[visitorteam_id]": away, include: BASIC, sort: "-starting_at", per_page: "15" });
+  const [ab, ba] = await Promise.all([side(a, b), side(b, a)]);
+  return [...ab, ...ba].sort((x, y) => y.starting_at.localeCompare(x.starting_at)).map(toMatch);
 }
 
 export async function fetchRankings(): Promise<Ranking[]> {

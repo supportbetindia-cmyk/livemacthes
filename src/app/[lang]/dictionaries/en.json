@@ -55,7 +55,14 @@
     "highestScore": "Highest score",
     "bestBowling": "Best bowling",
     "noSeriesStats": "Series stats will appear once matches in this series have been played.",
-    "noNews": "No news about these teams right now."
+    "noNews": "No news about these teams right now.",
+    "teamForm": "Team Form",
+    "last5": "(Last 5 matches)",
+    "h2h": "Head to Head",
+    "lastN": "(Last {n} matches)",
+    "won": "{team} Won",
+    "noResult": "No result",
+    "onBench": "On Bench"
   },
   "fixtures": {
     "title": "Fixtures",

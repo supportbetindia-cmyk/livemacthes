@@ -73,6 +73,18 @@ async function cachedTeamMatches(id: string) {
   return p.fetchTeamMatches(id);
 }
 
+async function cachedRecentMatches(id: string) {
+  "use cache";
+  cacheLife("hours"); // form only changes when a match ends
+  return p.fetchTeamResults(id);
+}
+
+async function cachedHeadToHead(a: string, b: string) {
+  "use cache";
+  cacheLife("hours");
+  return p.fetchHeadToHead(a, b);
+}
+
 async function cachedRankings() {
   "use cache";
   cacheLife("days");
@@ -148,6 +160,20 @@ export async function getTeamMatches(id: string) {
   const canonical = validId(id);
   if (!(await getTeams()).some((team) => team.id === canonical)) notFound();
   return cachedTeamMatches(canonical);
+}
+
+// Team Form on the match page: past results only, cached for hours. The id comes from match data, not the URL,
+// so a team missing from the teams list must not 404 the whole match page as getTeamMatches would.
+export async function getRecentMatches(teamId: string) {
+  await connection();
+  return cachedRecentMatches(validId(teamId));
+}
+
+// Sorted ids: IND-WI and WI-IND share one cache entry.
+export async function getHeadToHead(a: string, b: string) {
+  await connection();
+  const [x, y] = [validId(a), validId(b)].sort();
+  return cachedHeadToHead(x, y);
 }
 
 export async function getPlayer(id: string) {

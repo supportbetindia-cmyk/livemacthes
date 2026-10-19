@@ -7,6 +7,7 @@ import { PlayingXI } from "@/components/PlayingXI";
 import { SummaryTab } from "@/components/match/SummaryTab";
 import { SeriesStatsTab } from "@/components/match/SeriesStatsTab";
 import { NewsTab } from "@/components/match/NewsTab";
+import { HeadToHead, TeamForm } from "@/components/match/FormAndH2H";
 import { runs } from "@/components/MatchCard";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { Icon } from "@/components/Icon";
@@ -55,7 +56,8 @@ async function MatchView({ params, searchParams }: Pick<PageProps<"/[lang]/match
       </nav>
 
       {tab === "info" ? (
-        <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+        <div className="grid items-start gap-6 lg:grid-cols-[1fr_380px]">
+          <div className="flex min-w-0 flex-col gap-6">
           <section className="surface p-5 md:p-6">
             <div className="mb-5 flex items-center gap-3 border-b border-border pb-5">
               <div className="flex -space-x-2">
@@ -86,6 +88,14 @@ async function MatchView({ params, searchParams }: Pick<PageProps<"/[lang]/match
               )}
             </ul>
           </section>
+          {/* Own requests (cached for hours): stream in after the rest of the page. */}
+          <Suspense fallback={<div className="surface h-48 animate-pulse" />}>
+            <TeamForm match={match} dict={dict.match} lang={lang} />
+          </Suspense>
+          <Suspense fallback={<div className="surface h-64 animate-pulse" />}>
+            <HeadToHead match={match} dict={dict.match} lang={lang} />
+          </Suspense>
+          </div>
 
           <aside className="surface p-5 md:p-6">
             {info.toss && (
@@ -95,7 +105,7 @@ async function MatchView({ params, searchParams }: Pick<PageProps<"/[lang]/match
               </p>
             )}
             <h2 className="mb-4 text-lg font-bold tracking-tight">{short.join(" & ")} {dict.match.playingXI}</h2>
-            {info.lineups.length > 0 ? <PlayingXI lineups={info.lineups} short={short} lang={lang} /> : <p className="text-sm text-muted">{dict.match.xiPending}</p>}
+            {info.lineups.length > 0 ? <PlayingXI lineups={info.lineups} short={short} lang={lang} benchLabel={dict.match.onBench} /> : <p className="text-sm text-muted">{dict.match.xiPending}</p>}
           </aside>
         </div>
       ) : tab === "summary" ? (

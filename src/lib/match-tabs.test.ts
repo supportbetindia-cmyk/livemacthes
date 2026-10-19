@@ -2,8 +2,8 @@
 // Uses Node's built-in test runner: no test library to install.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { newsAbout, seriesLeaders, topPerformers } from "./match-tabs.ts";
-import type { PlayerStat, Scorecard } from "./provider";
+import { headToHead, newsAbout, seriesLeaders, teamForm, topPerformers } from "./match-tabs.ts";
+import type { Match, PlayerStat, Scorecard } from "./provider";
 import type { NewsItem } from "./news";
 
 const bat = (name: string, r: number, b: number) => ({ batsman: { name }, r, b, "4s": 0, "6s": 0, sr: 0 });
@@ -75,4 +75,35 @@ test("News: 'India' does not match 'West Indies' (whole words only)", () => {
 
 test("News: ignores upper/lower case", () => {
   assert.equal(newsAbout([news("INDIA WIN THE SERIES")], ["India"]).length, 1);
+});
+
+// A finished India (1) vs West Indies (2) match on a given day; winner = team id, or none for no result.
+const game = (id: string, day: string, winnerId?: string, s: Partial<Match> = {}): Match => ({
+  id, name: "", matchType: "t20", status: "", venue: "", date: day, dateTimeGMT: `${day}T14:00:00`, teams: ["India", "West Indies"],
+  teamInfo: [{ id: "1", name: "India" }, { id: "2", name: "West Indies" }], series_id: "9", matchStarted: true, matchEnded: true, winnerId, ...s,
+});
+
+test("Team Form: W / L / NR from the winner, newest first", () => {
+  const form = teamForm([game("a", "2026-10-01", "1"), game("b", "2026-10-05", "2"), game("c", "2026-10-03")], "1", "now");
+  assert.deepEqual(form.map((f) => f.result), ["L", "NR", "W"]);
+});
+
+test("Team Form: skips the match being viewed and matches not finished yet", () => {
+  const form = teamForm([game("now", "2026-10-09", "1"), game("next", "2026-10-20", undefined, { matchEnded: false }), game("a", "2026-10-01", "1")], "1", "now");
+  assert.deepEqual(form.map((f) => f.match.id), ["a"]);
+});
+
+test("Team Form: at most 5", () => {
+  const many = Array.from({ length: 8 }, (_, i) => game(`m${i}`, `2026-10-0${i + 1}`, "1"));
+  assert.equal(teamForm(many, "1", "now").length, 5);
+});
+
+test("Head to Head: counts wins per team; no-results count for neither", () => {
+  const h = headToHead([game("a", "2026-10-01", "1"), game("b", "2026-10-02", "2"), game("c", "2026-10-03", "1"), game("d", "2026-10-04")], "1", "2", "now");
+  assert.deepEqual([h.winsA, h.winsB, h.matches.length], [2, 1, 4]);
+});
+
+test("Head to Head: ignores matches against other teams", () => {
+  const vsAustralia = game("x", "2026-10-01", "1", { teamInfo: [{ id: "1", name: "India" }, { id: "3", name: "Australia" }] });
+  assert.equal(headToHead([vsAustralia], "1", "2", "now").matches.length, 0);
 });
