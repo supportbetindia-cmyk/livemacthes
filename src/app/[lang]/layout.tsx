@@ -31,7 +31,7 @@ const themeScript = `(function(){try{var t=localStorage.getItem("theme")||"syste
 export default async function RootLayout({ children }: LayoutProps<"/[lang]">) {
   const dict = await getDictionary();
   return (
-    <html lang={await lang()} data-theme="light" suppressHydrationWarning className={`${inter.variable} ${devanagari.variable}`}>
+    <html lang={await lang()}  suppressHydrationWarning className={`${inter.variable} ${devanagari.variable}`}>
       <head>
         <InlineScript html={themeScript} />
       </head>
