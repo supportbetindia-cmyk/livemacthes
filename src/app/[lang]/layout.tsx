@@ -5,6 +5,7 @@ import { lang } from "next/root-params";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { InlineScript } from "@/components/InlineScript";
+import { ThemeSync } from "@/components/ThemeSync";
 import { LOCALES } from "@/lib/i18n";
 import { getDictionary } from "./dictionaries";
 import "../globals.css";
@@ -36,6 +37,7 @@ export default async function RootLayout({ children }: LayoutProps<"/[lang]">) {
         <InlineScript html={themeScript} />
       </head>
       <body className="flex min-h-screen flex-col font-sans antialiased">
+        <ThemeSync />
         <Navbar />
         <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
         {/* Footer columns load live data (news, series, players); stream them in after the page. */}

@@ -6,24 +6,22 @@ import { useSyncExternalStore } from "react";
 import { LANGUAGES } from "@/lib/i18n";
 import { Icon } from "./Icon";
 import { Dropdown } from "./Dropdown";
+import { applyTheme, savedTheme, type Theme } from "./ThemeSync";
 
-type Theme = "light" | "dark" | "system";
 type Labels = Record<"more" | "theme" | "light" | "dark" | "system" | "language", string>;
 
-// Theme preference lives in localStorage; the layout's inline script applies it before paint.
+// Re-render the menu when the theme changes (to highlight the selected option).
 const listeners = new Set<() => void>();
 const subscribe = (cb: () => void) => (listeners.add(cb), () => listeners.delete(cb));
-const getTheme = () => (localStorage.getItem("theme") as Theme) || "system";
 
 function setTheme(t: Theme) {
   localStorage.setItem("theme", t);
-  const dark = t === "dark" || (t === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
-  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  applyTheme(t);
   listeners.forEach((cb) => cb());
 }
 
 export function MoreMenu({ lang, labels }: { lang: string; labels: Labels }) {
-  const theme = useSyncExternalStore(subscribe, getTheme, () => "system");
+  const theme = useSyncExternalStore(subscribe, savedTheme, () => "system");
   const pathname = usePathname();
   const query = useSearchParams().toString();
 
