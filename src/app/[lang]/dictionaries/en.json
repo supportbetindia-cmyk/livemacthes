@@ -30,7 +30,6 @@
   },
   "match": {
     "live": "LIVE",
-    "autoUpdate": "Updates every 15 seconds",
     "scorecard": "Scorecard",
     "batter": "Batter",
     "bowler": "Bowler",

@@ -13,7 +13,11 @@ export async function generateMetadata({ params }: PageProps<"/[lang]/series/[id
 async function SeriesView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [dict, lang, { info, matchList }, points] = await Promise.all([getDictionary(), getLocale(), getSeries(id), getPointsTable(id)]);
-  const matches = matchList.map((m) => ({ ...m, seriesName: info.name })).sort((a, b) => a.dateTimeGMT.localeCompare(b.dateTimeGMT));
+  const all = matchList.map((m) => ({ ...m, seriesName: info.name })).sort((a, b) => a.dateTimeGMT.localeCompare(b.dateTimeGMT));
+  // Around "now": the latest 12 started/finished matches and the next 12 fixtures. Sportmonks seasons for internationals
+  // hold a whole year (100+ matches, a 624 KB page). ponytail: no "show all" link; add one if older results are wanted.
+  const started = all.filter((m) => m.matchStarted);
+  const matches = [...started.slice(-12), ...all.filter((m) => !m.matchStarted).slice(0, 12)];
 
   return (
     <>

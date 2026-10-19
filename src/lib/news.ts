@@ -13,6 +13,9 @@ export type NewsItem = {
 };
 export type Article = { title: string; body: string; publishedAt: string; image?: string };
 
+// News changes every few minutes at most; the preset "minutes" profile would refetch every minute.
+const tenMinutes = { stale: 300, revalidate: 600, expire: 3600 };
+
 const FEEDS = [
   { source: "ESPNcricinfo", url: "https://www.espncricinfo.com/rss/content/story/feeds/0.xml" },
 ];
@@ -28,7 +31,10 @@ function webUrl(u?: string) {
 
 const parser = new Parser<object, { media?: { $?: { url?: string } }; cover?: string }>({ customFields: { item: [["media:content", "media"], ["coverImages", "cover"]] } });
 
+// Same feed for every language: cached on its own, so it is downloaded once, not once per language.
 async function getRss(): Promise<NewsItem[]> {
+  "use cache";
+  cacheLife(tenMinutes);
   const feeds = await Promise.all(
     FEEDS.map(async ({ source, url }) => {
       try {
@@ -94,7 +100,7 @@ async function getOurArticles(lang: string): Promise<NewsItem[]> {
 
 export async function getNews(lang: string): Promise<NewsItem[]> {
   "use cache";
-  cacheLife("minutes");
+  cacheLife(tenMinutes);
   const [ours, rss] = await Promise.all([getOurArticles(lang), getRss()]);
   return [...ours, ...rss].sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
 }

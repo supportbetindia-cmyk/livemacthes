@@ -20,8 +20,12 @@ function validId(id: string) {
   return String(Number(id));
 }
 
-// Share two-minute refreshes across visitors to fit the 2,000/day provider plan.
-const live = { stale: 120, revalidate: 120, expire: 300 };
+// How often each kind of data is fetched again, at most (while visitors keep coming), chosen to fit the
+// daily request budget: refresh rate, not visitor count, sets the API usage.
+// Note: the preset "minutes" profile refreshes every 1 minute, too often for this plan.
+const live = { stale: 120, revalidate: 120, expire: 300 }; // live scores: every 2 min
+const tenMinutes = { stale: 300, revalidate: 600, expire: 3600 }; // match list, upcoming match
+const halfHour = { stale: 300, revalidate: 1800, expire: 7200 }; // series, points table, team page
 
 // ---------- Cached fetches (shared across visitors) ----------
 
@@ -33,25 +37,29 @@ async function cachedCurrentMatches() {
 
 async function cachedMatchDetail(id: string) {
   "use cache";
-  cacheLife(live);
-  return p.fetchMatchDetail(id);
+  const detail = await p.fetchMatchDetail(id);
+  // A finished match never changes; a live one does every ball; an upcoming one gets its toss and XI before the start.
+  if (detail.match.matchEnded) cacheLife("days");
+  else if (detail.match.matchStarted) cacheLife(live);
+  else cacheLife(tenMinutes);
+  return detail;
 }
 
 async function cachedMatches() {
   "use cache";
-  cacheLife("minutes");
+  cacheLife(tenMinutes); // live scores on top come from cachedCurrentMatches (2 min)
   return p.fetchMatches();
 }
 
 async function cachedSeries(id: string) {
   "use cache";
-  cacheLife("minutes");
+  cacheLife(halfHour);
   return p.fetchSeries(id);
 }
 
 async function cachedPointsTable(id: string) {
   "use cache";
-  cacheLife("minutes");
+  cacheLife(halfHour);
   return p.fetchPointsTable(id);
 }
 
@@ -69,7 +77,7 @@ async function cachedPlayer(id: string) {
 
 async function cachedTeamMatches(id: string) {
   "use cache";
-  cacheLife("minutes");
+  cacheLife(halfHour);
   return p.fetchTeamMatches(id);
 }
 

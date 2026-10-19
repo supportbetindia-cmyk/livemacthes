@@ -9,7 +9,7 @@ const databaseURL = process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL;
 
 // Subscribes to /live in Firebase Realtime DB (written by scripts/live-worker.mts).
 // `enabled` = the page shows at least one live match. Otherwise (or without Firebase configured) nothing loads:
-// no ~50 KB SDK download, no open connection, no re-renders. Pages then use the 15s server refresh.
+// no ~50 KB SDK download, no open connection, no re-renders. Live match pages then use the 60s server refresh.
 export function useLiveScores(enabled: boolean): Record<string, LivePatch> {
   const [live, setLive] = useState<Record<string, LivePatch>>({});
 
