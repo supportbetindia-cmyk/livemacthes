@@ -36,10 +36,11 @@ export default async function RootLayout({ children }: LayoutProps<"/[lang]">) {
       <head>
         <InlineScript html={themeScript} />
       </head>
-      <body className="flex min-h-screen flex-col font-sans antialiased">
+      {/* Bottom padding below lg: room for the phone tab bar (Navbar) so it never covers the page end */}
+      <body className="flex min-h-screen flex-col pb-[calc(3.75rem+env(safe-area-inset-bottom))] font-sans antialiased lg:pb-0">
         <ThemeSync />
         <Navbar />
-        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-4 sm:py-6">{children}</main>
         {/* Footer columns load live data (news, series, players); stream them in after the page. */}
         <Suspense fallback={<div className="mt-16 h-96 bg-nav" />}>
           <Footer />

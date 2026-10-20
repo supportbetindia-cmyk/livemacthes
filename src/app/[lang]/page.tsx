@@ -34,7 +34,7 @@ async function TopNews() {
     <>
       <NewsFeatured item={lead} lang={lang} />
       <Section title={dict.home.latestNews} href={`/${lang}/news`} linkLabel={dict.home.viewAll}>
-        <div className="mt-6 grid gap-3 md:grid-cols-2">
+        <div className="grid sm:mt-6 sm:gap-3 md:grid-cols-2">
           {rest.slice(0, 6).map((n) => <NewsCard key={n.link} item={n} lang={lang} />)}
         </div>
       </Section>

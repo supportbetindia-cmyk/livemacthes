@@ -91,6 +91,16 @@ body {
   [data-theme="dark"] .surface-hover:hover {
     border-color: color-mix(in srgb, var(--foreground) 22%, transparent);
   }
+  /* News list item: plain rows with a divider on phones (like an app), a card from 640px up. */
+  @media (max-width: 639.98px) {
+    .news-row,
+    [data-theme="dark"] .news-row {
+      border-width: 0 0 1px;
+      border-radius: 0;
+      background: none;
+      box-shadow: none;
+    }
+  }
 
   /* Pill tabs / filters / shortcut links. Selected state comes from aria-current or aria-pressed. */
   .chip {

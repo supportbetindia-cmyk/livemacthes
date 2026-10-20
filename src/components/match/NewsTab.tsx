@@ -8,7 +8,7 @@ export async function NewsTab({ teams, dict, lang }: { teams: string[]; dict: Di
   const items = newsAbout(await getNews(lang), teams).slice(0, 12);
   if (items.length === 0) return <Empty>{dict.noNews}</Empty>;
   return (
-    <div className="grid gap-4 md:grid-cols-2">
+    <div className="grid sm:gap-4 md:grid-cols-2">
       {items.map((n) => <NewsCard key={n.link} item={n} lang={lang} />)}
     </div>
   );

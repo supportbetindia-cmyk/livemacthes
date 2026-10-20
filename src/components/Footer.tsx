@@ -96,11 +96,11 @@ export async function Footer() {
       <div className="mx-auto max-w-7xl px-4">
         <div className="flex flex-col gap-6 border-t border-white/15 py-8 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-5">
-            <Link href={href("")} className="shrink-0 rounded-lg bg-white px-3 py-1">
+            <Link href={href("")} className="shrink-0 rounded-lg px-3 py-1">
               <Image
-                src="/live-matches-cricket-logo.png"
+                src="/live-matches-cricket-logo-dark.png"
                 alt="Live Matches"
-                width={2172}
+                width={2171}
                 height={724}
                 sizes="192px"
                 className="h-auto w-48"

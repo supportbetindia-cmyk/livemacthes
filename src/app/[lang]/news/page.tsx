@@ -10,7 +10,7 @@ async function NewsList() {
   return (
     <>
       <NewsFeatured item={lead} lang={lang} />
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid sm:gap-4 md:grid-cols-2">
         {/* ponytail: newest 30 only (the feed has ~100, which made a 669 KB page); add paging if older stories are wanted. */}
         {rest.slice(0, 30).map((n) => <NewsCard key={n.link} item={n} lang={lang} />)}
       </div>
