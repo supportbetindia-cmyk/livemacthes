@@ -1,6 +1,6 @@
 // Hosts next/image may optimize (also used by next.config.ts). Images from any other host
 // (e.g. a new RSS feed) are shown as-is instead of crashing the page.
-export const IMAGE_HOSTS = ["cdn.sportmonks.com", "p.imgci.com", "cdn.sanity.io"];
+export const IMAGE_HOSTS = ["cdn.sportmonks.com", "p.imgci.com", "cdn.sanity.io", "ichef.bbci.co.uk"];
 
 // The optimizer fetches images from the server and refuses hosts that resolve to private/reserved IPs
 // (SSRF protection). On IPv6-only/NAT64 networks (common on Indian mobile ISPs) public hosts like

@@ -18,6 +18,7 @@ const tenMinutes = { stale: 300, revalidate: 600, expire: 3600 };
 
 const FEEDS = [
   { source: "ESPNcricinfo", url: "https://www.espncricinfo.com/rss/content/story/feeds/0.xml" },
+  { source: "BBC Sport", url: "https://feeds.bbci.co.uk/sport/cricket/rss.xml" },
 ];
 
 // Returns the URL only if it's an absolute http(s) link.
@@ -29,7 +30,15 @@ function webUrl(u?: string) {
   }
 }
 
-const parser = new Parser<object, { media?: { $?: { url?: string } }; cover?: string }>({ customFields: { item: [["media:content", "media"], ["coverImages", "cover"]] } });
+// Photo tags differ per feed: ESPNcricinfo uses media:content / coverImages, BBC media:thumbnail.
+type Media = { $?: { url?: string } };
+const parser = new Parser<object, { media?: Media; thumb?: Media; cover?: string }>({
+  customFields: { item: [["media:content", "media"], ["media:thumbnail", "thumb"], ["coverImages", "cover"]] },
+});
+
+// BBC thumbnails are 240px wide (blurry as the lead story); the same image exists at 976px. next/image then
+// resizes it down for small cards, so thumbnails stay light.
+const largerImage = (u?: string) => u?.replace(/^http:\/\//, "https://").replace(/(ichef\.bbci\.co\.uk\/ace\/standard\/)\d+\//, "$1976/");
 
 // Same feed for every language: cached on its own, so it is downloaded once, not once per language.
 async function getRss(): Promise<NewsItem[]> {
@@ -38,7 +47,8 @@ async function getRss(): Promise<NewsItem[]> {
   const feeds = await Promise.all(
     FEEDS.map(async ({ source, url }) => {
       try {
-        const res = await fetch(url, { headers: { "user-agent": "Mozilla/5.0 LiveScore" } });
+        // 5s limit: a slow or hanging publisher is skipped instead of holding up the other feeds.
+        const res = await fetch(url, { headers: { "user-agent": "Mozilla/5.0 LiveScore" }, signal: AbortSignal.timeout(5000) });
         const feed = await parser.parseString(await res.text());
         return feed.items.flatMap((i) => {
           // Feed content is untrusted: only real web links may become an href (no javascript:, data: ...).
@@ -51,7 +61,7 @@ async function getRss(): Promise<NewsItem[]> {
               date: i.isoDate ?? i.pubDate ?? "",
               excerpt: i.contentSnippet?.slice(0, 200),
               // Feeds use http:// image links; upgrade so they load on an https site and next/image can resize them.
-              image: webUrl((i.enclosure?.url ?? i.media?.$?.url ?? i.cover)?.replace(/^http:\/\//, "https://")),
+              image: webUrl(largerImage(i.enclosure?.url ?? i.media?.$?.url ?? i.thumb?.$?.url ?? i.cover)),
               source,
             },
           ];
