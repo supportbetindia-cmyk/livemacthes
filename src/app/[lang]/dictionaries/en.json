@@ -134,7 +134,8 @@
     "title": "News",
     "empty": "No news yet.",
     "ours": "LiveScore",
-    "back": "All news"
+    "back": "All news",
+    "more": "More news"
   },
   "search": {
     "title": "Search",

@@ -52,7 +52,8 @@ const linkProps = (item: NewsItem) => ({
 // "ESPNCRICINFO · 2 hours ago"
 const Meta = ({ item, lang }: { item: NewsItem; lang: string }) => (
   <p className="flex items-center gap-1.5 text-xs text-muted max-sm:text-[11px] max-sm:uppercase max-sm:tracking-wide">
-    <span className={`font-semibold uppercase tracking-wide ${item.ours ? "text-accent" : "text-link"}`}>{item.source}</span>
+    {/* Our articles show the writer ("ARJUN · 3 HRS AGO"), feed stories their publisher */}
+    <span className={`font-semibold uppercase tracking-wide ${item.ours ? "text-accent" : "text-link"}`}>{item.author || item.source}</span>
     {item.date && (
       <>
         <span aria-hidden>·</span>

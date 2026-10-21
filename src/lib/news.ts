@@ -1,5 +1,6 @@
 // News = external RSS feeds + our own articles from Sanity, merged newest-first.
-import { cacheLife } from "next/cache";
+import { cacheLife, cacheTag } from "next/cache";
+import type { PortableTextBlock } from "@portabletext/react";
 import Parser from "rss-parser";
 
 export type NewsItem = {
@@ -9,9 +10,15 @@ export type NewsItem = {
   excerpt?: string;
   image?: string;
   source: string;
+  author?: string; // our articles only
   ours?: boolean;
 };
-export type Article = { title: string; body: string; publishedAt: string; image?: string };
+// body: Sanity rich text (paragraphs, headings, lists, links, photos); photos carry their resolved `url`.
+export type Article = { title: string; body?: PortableTextBlock[]; publishedAt: string; image?: string; author?: string; excerpt?: string };
+
+// Cache tag on everything read from Sanity: publishing in the Studio calls /api/revalidate (webhook), which
+// expires it so new or edited articles show at once instead of after the 10-minute refresh.
+export const SANITY_TAG = "sanity";
 
 // News changes every few minutes at most; the preset "minutes" profile would refetch every minute.
 const tenMinutes = { stale: 300, revalidate: 600, expire: 3600 };
@@ -82,7 +89,9 @@ async function sanity<T>(query: string, params: Record<string, string>): Promise
   if (!projectId) return null;
   const qs = new URLSearchParams({ query });
   for (const [k, v] of Object.entries(params)) qs.set(`$${k}`, JSON.stringify(v));
-  const res = await fetch(`https://${projectId}.apicdn.sanity.io/v2025-01-01/data/query/${dataset}?${qs}`);
+  // api (not apicdn): right after a publish the webhook asks for fresh data, and Sanity's CDN could still hold the old
+  // answer for a moment. Our own cache keeps this to a few requests an hour. Without a token only published articles are visible.
+  const res = await fetch(`https://${projectId}.api.sanity.io/v2025-01-01/data/query/${dataset}?${qs}`, { signal: AbortSignal.timeout(5000) });
   if (!res.ok) return null;
   return (await res.json()).result as T;
 }
@@ -91,9 +100,9 @@ async function sanity<T>(query: string, params: Record<string, string>): Promise
 const t = (field: string) => `coalesce(${field}[$lang], ${field}.en)`;
 
 async function getOurArticles(lang: string): Promise<NewsItem[]> {
-  const rows = await sanity<{ title: string; slug: string; publishedAt: string; excerpt?: string; image?: string }[]>(
+  const rows = await sanity<{ title: string; slug: string; publishedAt: string; excerpt?: string; image?: string; author?: string }[]>(
     `*[_type == "article" && defined(slug.current)] | order(publishedAt desc)[0...30]{
-      "title": ${t("title")}, "slug": slug.current, publishedAt,
+      "title": ${t("title")}, "slug": slug.current, publishedAt, author,
       "excerpt": ${t("excerpt")}, "image": image.asset->url }`,
     { lang },
   );
@@ -104,6 +113,7 @@ async function getOurArticles(lang: string): Promise<NewsItem[]> {
     excerpt: r.excerpt,
     image: r.image,
     source: "LiveScore",
+    author: r.author,
     ours: true,
   }));
 }
@@ -111,16 +121,19 @@ async function getOurArticles(lang: string): Promise<NewsItem[]> {
 export async function getNews(lang: string): Promise<NewsItem[]> {
   "use cache";
   cacheLife(tenMinutes);
+  cacheTag(SANITY_TAG);
   const [ours, rss] = await Promise.all([getOurArticles(lang), getRss()]);
   return [...ours, ...rss].sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
 }
 
 export async function getArticle(slug: string, lang: string) {
   "use cache";
-  cacheLife("minutes");
+  cacheLife(tenMinutes);
+  cacheTag(SANITY_TAG);
   return sanity<Article>(
     `*[_type == "article" && slug.current == $slug][0]{
-      "title": ${t("title")}, "body": ${t("body")}, publishedAt, "image": image.asset->url }`,
+      "title": ${t("title")}, "excerpt": ${t("excerpt")}, publishedAt, author, "image": image.asset->url,
+      "body": ${t("body")}[]{ ..., _type == "image" => { "url": asset->url } } }`,
     { slug, lang },
   );
 }

@@ -11,6 +11,7 @@
     "live-worker": "node --env-file-if-exists=.env.local scripts/live-worker.mts"
   },
   "dependencies": {
+    "@portabletext/react": "^8.0.1",
     "firebase": "^13.0.0",
     "firebase-admin": "^14.5.0",
     "next": "16.4.1",
