@@ -14,7 +14,7 @@ export type NewsItem = {
   ours?: boolean;
 };
 // body: Sanity rich text (paragraphs, headings, lists, links, photos); photos carry their resolved `url`.
-export type Article = { title: string; body?: PortableTextBlock[]; publishedAt: string; image?: string; author?: string; excerpt?: string };
+export type Article = { title: string; body?: PortableTextBlock[]; publishedAt: string; image?: string; author?: string; excerpt?: string; metaTitle?: string; metaDescription?: string };
 
 // Cache tag on everything read from Sanity: publishing in the Studio calls /api/revalidate (webhook), which
 // expires it so new or edited articles show at once instead of after the 10-minute refresh.
@@ -133,6 +133,7 @@ export async function getArticle(slug: string, lang: string) {
   return sanity<Article>(
     `*[_type == "article" && slug.current == $slug][0]{
       "title": ${t("title")}, "excerpt": ${t("excerpt")}, publishedAt, author, "image": image.asset->url,
+      "metaTitle": coalesce(seo[$lang].title, seo.en.title), "metaDescription": coalesce(seo[$lang].description, seo.en.description),
       "body": ${t("body")}[]{ ..., _type == "image" => { "url": asset->url } } }`,
     { slug, lang },
   );

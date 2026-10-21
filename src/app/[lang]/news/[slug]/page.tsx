@@ -16,15 +16,18 @@ async function load(params: Promise<{ slug: string }>) {
   return article;
 }
 
-// Title, summary and cover photo also make the preview card when the link is shared (WhatsApp, X, Facebook).
+// Google result + share preview card (WhatsApp, X, Facebook). The Studio's SEO fields win; empty = title / summary.
 export async function generateMetadata({ params }: PageProps<"/[lang]/news/[slug]">) {
   const a = await load(params);
+  const title = a.metaTitle || a.title;
+  const description = a.metaDescription || a.excerpt;
   const images = a.image ? [{ url: a.image }] : undefined;
   return {
-    title: a.title,
-    description: a.excerpt,
-    openGraph: { type: "article", title: a.title, description: a.excerpt, images, publishedTime: a.publishedAt, authors: a.author ? [a.author] : undefined },
-    twitter: { card: a.image ? "summary_large_image" : "summary", title: a.title, description: a.excerpt, images },
+    // A custom meta title is used exactly as typed; otherwise " | LiveScore" is added after the article title.
+    title: a.metaTitle ? { absolute: a.metaTitle } : a.title,
+    description,
+    openGraph: { type: "article", title, description, images, publishedTime: a.publishedAt, authors: a.author ? [a.author] : undefined },
+    twitter: { card: a.image ? "summary_large_image" : "summary", title, description, images },
   };
 }
 
