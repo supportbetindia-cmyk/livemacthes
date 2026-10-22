@@ -49,14 +49,34 @@ export type PlayerStat = {
 
 const BASE = "https://cricket.sportmonks.com/api/v2.0";
 
-async function sm<T>(path: string, params: Record<string, string> = {}, source: RequestSource = "web"): Promise<T> {
+type SmResponse = { data: unknown; meta?: { last_page?: number } };
+
+// One API call (counted against the shared request budget).
+async function smResponse(path: string, params: Record<string, string>, source: RequestSource): Promise<SmResponse> {
   const token = process.env.SPORTMONKS_API_TOKEN;
   if (!token) throw new Error("SPORTMONKS_API_TOKEN is not set (see .env.example)");
   await reserveProviderRequest(source);
   const res = await fetch(`${BASE}/${path}?${new URLSearchParams({ api_token: token, ...params })}`, { signal: AbortSignal.timeout(10000) });
   const json = await res.json();
   if (!res.ok || json.status === "error") throw new Error(`Sportmonks ${path}: ${JSON.stringify(json.message ?? res.status)}`);
-  return json.data as T;
+  return json;
+}
+
+async function sm<T>(path: string, params: Record<string, string> = {}, source: RequestSource = "web"): Promise<T> {
+  return (await smResponse(path, params, source)).data as T;
+}
+
+// Lists are paged, at most 100 items per page. Page 1 tells how many pages there are; the rest load in parallel.
+// ponytail: capped at MAX_PAGES (1,000 items, 10 requests) so one list can't drain the request budget.
+export const MAX_PAGES = 10;
+async function smAll<T extends { id: number }>(path: string, params: Record<string, string>, source: RequestSource = "web"): Promise<T[]> {
+  const query = { ...params, per_page: "100" };
+  const first = await smResponse(path, query, source);
+  const pages = Math.min(Math.max(1, Number(first.meta?.last_page) || 1), MAX_PAGES);
+  const rest = await Promise.all(Array.from({ length: pages - 1 }, (_, i) => smResponse(path, { ...query, page: String(i + 2) }, source)));
+  const items = [first, ...rest].flatMap((r) => r.data as T[]);
+  // If the list changes between page requests, an item can appear on two pages: keep one copy per id.
+  return [...new Map(items.map((x) => [x.id, x])).values()];
 }
 
 // ---------- Raw Sportmonks shapes (only the fields we use) ----------
@@ -201,9 +221,9 @@ const day = (offset: number) => new Date(Date.now() + offset * 86400000).toISOSt
 
 export const fetchLive = async (source: RequestSource = "web") => (await sm<SmFixture[]>("livescores", { include: BASIC }, source)).map(toMatch);
 
-// Recent results + upcoming fixtures window. ponytail: fixed window (-4..+21 days); add paging if a plan has >100 matches in it.
+// Recent results + upcoming fixtures window (-4..+21 days), all pages: a bigger plan has well over 100 matches in it.
 export async function fetchMatches() {
-  const fs = await sm<SmFixture[]>("fixtures", { "filter[starts_between]": `${day(-4)},${day(21)}`, include: BASIC, sort: "starting_at", per_page: "100" });
+  const fs = await smAll<SmFixture>("fixtures", { "filter[starts_between]": `${day(-4)},${day(21)}`, include: BASIC, sort: "starting_at" });
   return fs.map(toMatch);
 }
 
@@ -214,7 +234,8 @@ export async function fetchMatchDetail(id: string) {
 }
 
 export async function fetchSeries(id: string) {
-  const matchList = (await sm<SmFixture[]>("fixtures", { "filter[season_id]": id, include: BASIC, per_page: "100" })).map(toMatch);
+  // All pages: an international season ("Twenty20 International 2026") holds the whole year, 176 matches in 2026.
+  const matchList = (await smAll<SmFixture>("fixtures", { "filter[season_id]": id, include: BASIC })).map(toMatch);
   return { info: seriesFromMatches(id, matchList), matchList };
 }
 
@@ -362,12 +383,11 @@ export async function fetchLeagues(): Promise<League[]> {
   return (await sm<Row[]>("leagues")).map((l) => ({ id: String(l.id), name: l.name, code: l.code, seasonId: String(l.season_id), img: l.image_path }));
 }
 
-// Season leaderboard, aggregated from every scorecard in the season (one request: all fixtures with batting + bowling).
+// Season leaderboard, aggregated from every scorecard in the season (all fixtures with batting + bowling, every page).
 export async function fetchSeasonStats(seasonId: string): Promise<{ season: string; players: PlayerStat[] }> {
-  const fs = await sm<SmFixture[]>("fixtures", {
+  const fs = await smAll<SmFixture>("fixtures", {
     "filter[season_id]": seasonId,
     include: "localteam,visitorteam,season,batting.batsman,batting.result,bowling.bowler",
-    per_page: "100",
   });
   const players = new Map<string, PlayerStat & { fixtures: Set<number> }>();
   const get = (p: SmPlayer | undefined, teamId: number, f: SmFixture) => {
