@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Match } from "@/lib/provider";
+import { isNotBehind } from "@/lib/score-progress";
 
 type LivePatch = Pick<Match, "score" | "status" | "matchStarted" | "matchEnded"> & { updatedAt?: number }; // updatedAt: ms, set by the worker
 
@@ -32,8 +33,9 @@ export function useLiveScores(enabled: boolean): Record<string, LivePatch> {
   return live;
 }
 
-// Latest real-time score wins over the server-rendered one.
+// The real-time score wins over the server-rendered one, unless it is older: if the worker is stuck (API limit,
+// crash) Firebase keeps its last score, and showing it would make the score jump backwards.
 export function withLive(m: Match, live: Record<string, LivePatch>): Match {
   const p = live[m.id];
-  return p ? { ...m, ...p, score: p.score ?? m.score } : m;
+  return p && isNotBehind(p, m) ? { ...m, ...p, score: p.score ?? m.score } : m;
 }
