@@ -1,15 +1,32 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useLiveScores } from "./useLiveScores";
 
-// Re-renders the server components on this page every N seconds. The live data behind it refreshes every
-// 2 minutes (cricket.ts), so polling faster would mostly resend the same page.
-export function AutoRefresh({ seconds = 60 }: { seconds?: number }) {
+// Reloads a live match page's server data (scorecard, summary) while the tab is visible.
+// - Live worker pushing this match through Firebase: the score banner is already live, so reload only every
+//   3 minutes for the tables. With 1,000 viewers that's ~6 page loads a second on the server instead of ~17.
+// - No recent push (worker down, Firebase not set up, long break): every 60 s, matching the 2-minute live data cache.
+const MINUTE = 60_000;
+
+export function AutoRefresh({ matchId }: { matchId: string }) {
   const router = useRouter();
+  const pushedAt = useLiveScores(true)[matchId]?.updatedAt;
+  const lastPush = useRef(pushedAt);
   useEffect(() => {
-    const id = setInterval(() => document.visibilityState === "visible" && router.refresh(), seconds * 1000);
+    lastPush.current = pushedAt;
+  }, [pushedAt]);
+
+  useEffect(() => {
+    let minutes = 0;
+    const id = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      minutes++;
+      const workerPushing = Date.now() - (lastPush.current ?? 0) < 5 * MINUTE;
+      if (!workerPushing || minutes % 3 === 0) router.refresh();
+    }, MINUTE);
     return () => clearInterval(id);
-  }, [router, seconds]);
+  }, [router]);
   return null;
 }

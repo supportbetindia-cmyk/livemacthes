@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Match } from "@/lib/provider";
 
-type LivePatch = Pick<Match, "score" | "status" | "matchStarted" | "matchEnded">;
+type LivePatch = Pick<Match, "score" | "status" | "matchStarted" | "matchEnded"> & { updatedAt?: number }; // updatedAt: ms, set by the worker
 
 const databaseURL = process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL;
 

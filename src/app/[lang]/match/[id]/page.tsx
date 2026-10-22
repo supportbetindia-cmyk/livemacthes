@@ -37,7 +37,7 @@ async function MatchView({ params, searchParams }: Pick<PageProps<"/[lang]/match
 
   return (
     <>
-      {live && <AutoRefresh />}
+      {live && <AutoRefresh matchId={match.id} />}
       <h1 className="mb-3 text-sm text-muted md:text-base">{match.name}{match.seriesName && `, ${match.seriesName}`}</h1>
       <LiveScore match={match} upcomingLabel={formatDate(match.dateTimeGMT, lang)} />
 
