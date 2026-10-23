@@ -47,37 +47,36 @@ const parser = new Parser<object, { media?: Media; thumb?: Media; cover?: string
 // resizes it down for small cards, so thumbnails stay light.
 const largerImage = (u?: string) => u?.replace(/^http:\/\//, "https://").replace(/(ichef\.bbci\.co\.uk\/ace\/standard\/)\d+\//, "$1976/");
 
-// Same feed for every language: cached on its own, so it is downloaded once, not once per language.
-async function getRss(): Promise<NewsItem[]> {
+// One feed, cached on its own and shared by every language. A failure throws, so it is never cached: the last
+// good copy keeps being served while the publisher is down.
+async function getFeed(source: string, url: string): Promise<NewsItem[]> {
   "use cache";
   cacheLife(tenMinutes);
-  const feeds = await Promise.all(
-    FEEDS.map(async ({ source, url }) => {
-      try {
-        // 5s limit: a slow or hanging publisher is skipped instead of holding up the other feeds.
-        const res = await fetch(url, { headers: { "user-agent": "Mozilla/5.0 LiveScore" }, signal: AbortSignal.timeout(5000) });
-        const feed = await parser.parseString(await res.text());
-        return feed.items.flatMap((i) => {
-          // Feed content is untrusted: only real web links may become an href (no javascript:, data: ...).
-          const link = webUrl(i.link);
-          if (!link) return [];
-          return [
-            {
-              title: i.title ?? "",
-              link,
-              date: i.isoDate ?? i.pubDate ?? "",
-              excerpt: i.contentSnippet?.slice(0, 200),
-              // Feeds use http:// image links; upgrade so they load on an https site and next/image can resize them.
-              image: webUrl(largerImage(i.enclosure?.url ?? i.media?.$?.url ?? i.thumb?.$?.url ?? i.cover)),
-              source,
-            },
-          ];
-        });
-      } catch {
-        return []; // one broken feed shouldn't break the page
-      }
-    }),
-  );
+  // 5s limit: a slow or hanging publisher is skipped instead of holding up the other feeds.
+  const res = await fetch(url, { headers: { "user-agent": "Mozilla/5.0 LiveScore" }, signal: AbortSignal.timeout(5000) });
+  if (!res.ok) throw new Error(`${source} feed: HTTP ${res.status}`);
+  const feed = await parser.parseString(await res.text());
+  return feed.items.flatMap((i) => {
+    // Feed content is untrusted: only real web links may become an href (no javascript:, data: ...).
+    const link = webUrl(i.link);
+    if (!link) return [];
+    return [
+      {
+        title: i.title ?? "",
+        link,
+        date: i.isoDate ?? i.pubDate ?? "",
+        excerpt: i.contentSnippet?.slice(0, 200),
+        // Feeds use http:// image links; upgrade so they load on an https site and next/image can resize them.
+        image: webUrl(largerImage(i.enclosure?.url ?? i.media?.$?.url ?? i.thumb?.$?.url ?? i.cover)),
+        source,
+      },
+    ];
+  });
+}
+
+// One broken feed shouldn't break the page.
+async function getRss(): Promise<NewsItem[]> {
+  const feeds = await Promise.all(FEEDS.map(({ source, url }) => getFeed(source, url).catch(() => [])));
   return feeds.flat();
 }
 
@@ -92,7 +91,7 @@ async function sanity<T>(query: string, params: Record<string, string>): Promise
   // api (not apicdn): right after a publish the webhook asks for fresh data, and Sanity's CDN could still hold the old
   // answer for a moment. Our own cache keeps this to a few requests an hour. Without a token only published articles are visible.
   const res = await fetch(`https://${projectId}.api.sanity.io/v2025-01-01/data/query/${dataset}?${qs}`, { signal: AbortSignal.timeout(5000) });
-  if (!res.ok) return null;
+  if (!res.ok) throw new Error(`Sanity: HTTP ${res.status}`); // thrown, not null: an outage must not be cached as "no article"
   return (await res.json()).result as T;
 }
 
@@ -100,6 +99,9 @@ async function sanity<T>(query: string, params: Record<string, string>): Promise
 const t = (field: string) => `coalesce(${field}[$lang], ${field}.en)`;
 
 async function getOurArticles(lang: string): Promise<NewsItem[]> {
+  "use cache";
+  cacheLife(tenMinutes);
+  cacheTag(SANITY_TAG);
   const rows = await sanity<{ title: string; slug: string; publishedAt: string; excerpt?: string; image?: string; author?: string }[]>(
     `*[_type == "article" && defined(slug.current)] | order(publishedAt desc)[0...30]{
       "title": ${t("title")}, "slug": slug.current, publishedAt, author,
@@ -118,11 +120,9 @@ async function getOurArticles(lang: string): Promise<NewsItem[]> {
   }));
 }
 
+// Not cached itself: it only merges cached parts, so a failing part is skipped this time instead of cached as empty.
 export async function getNews(lang: string): Promise<NewsItem[]> {
-  "use cache";
-  cacheLife(tenMinutes);
-  cacheTag(SANITY_TAG);
-  const [ours, rss] = await Promise.all([getOurArticles(lang), getRss()]);
+  const [ours, rss] = await Promise.all([getOurArticles(lang).catch(() => []), getRss()]);
   return [...ours, ...rss].sort((a, b) => Date.parse(b.date) - Date.parse(a.date));
 }
 

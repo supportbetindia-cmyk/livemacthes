@@ -4,7 +4,7 @@ import { getSeriesList } from "@/lib/cricket";
 import { Empty, PageHeader, Skeleton } from "@/components/ui";
 import { Icon } from "@/components/Icon";
 import { FormatBadges } from "@/components/FormatBadges";
-import { getDictionary, getLocale } from "../dictionaries";
+import { getDictionary, alternates, getLocale } from "../dictionaries";
 
 async function SeriesList() {
   const [dict, lang, series] = await Promise.all([getDictionary(), getLocale(), getSeriesList()]);
@@ -30,7 +30,7 @@ async function SeriesList() {
 }
 
 export async function generateMetadata() {
-  return { title: (await getDictionary()).series.title };
+  return { title: (await getDictionary()).series.title, alternates: await alternates("/series") };
 }
 
 export default async function SeriesPage() {

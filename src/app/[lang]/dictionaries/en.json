@@ -203,5 +203,12 @@
     "teams": "Teams",
     "players": "Players",
     "otherLinks": "Other links"
+  },
+  "seo": {
+    "homeTitle": "Live Cricket Scores, Fixtures and News",
+    "description": "Live cricket scores, ball-by-ball updates, scorecards, fixtures, series, rankings and news.",
+    "match": "{match} live score, scorecard, Playing XI and match info.",
+    "notFound": "This page doesn't exist or has moved.",
+    "goHome": "Go to home page"
   }
 }

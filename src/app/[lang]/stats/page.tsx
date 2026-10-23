@@ -5,7 +5,7 @@ import { Dropdown } from "@/components/Dropdown";
 import { Icon } from "@/components/Icon";
 import { Logo } from "@/components/Logo";
 import { Empty, Skeleton } from "@/components/ui";
-import { getDictionary, getLocale, type Dict } from "../dictionaries";
+import { getDictionary, alternates, getLocale, type Dict } from "../dictionaries";
 import { PlayerLink } from "@/components/PlayerLink";
 
 type T = Dict["stats"];
@@ -195,7 +195,7 @@ async function StatsView({ searchParams }: { searchParams: Promise<{ league?: st
 }
 
 export async function generateMetadata() {
-  return { title: (await getDictionary()).stats.title };
+  return { title: (await getDictionary()).stats.title, alternates: await alternates("/stats") };
 }
 
 export default function StatsPage({ searchParams }: PageProps<"/[lang]/stats">) {

@@ -8,7 +8,8 @@ import { formatDate } from "@/lib/i18n";
 import { NewsCard, Section, Skeleton } from "@/components/ui";
 import { ArticleBody } from "@/components/ArticleBody";
 import { Icon } from "@/components/Icon";
-import { getDictionary, getLocale } from "../../dictionaries";
+import { JsonLd } from "@/components/JsonLd";
+import { alternates, getDictionary, getLocale } from "../../dictionaries";
 
 async function load(params: Promise<{ slug: string }>) {
   const article = await getArticle((await params).slug, await getLocale());
@@ -18,7 +19,7 @@ async function load(params: Promise<{ slug: string }>) {
 
 // Google result + share preview card (WhatsApp, X, Facebook). The Studio's SEO fields win; empty = title / summary.
 export async function generateMetadata({ params }: PageProps<"/[lang]/news/[slug]">) {
-  const a = await load(params);
+  const [a, dict] = await Promise.all([load(params), getDictionary()]);
   const title = a.metaTitle || a.title;
   const description = a.metaDescription || a.excerpt;
   const images = a.image ? [{ url: a.image }] : undefined;
@@ -26,7 +27,8 @@ export async function generateMetadata({ params }: PageProps<"/[lang]/news/[slug
     // A custom meta title is used exactly as typed; otherwise " | LiveScore" is added after the article title.
     title: a.metaTitle ? { absolute: a.metaTitle } : a.title,
     description,
-    openGraph: { type: "article", title, description, images, publishedTime: a.publishedAt, authors: a.author ? [a.author] : undefined },
+    alternates: await alternates(`/news/${(await params).slug}`),
+    openGraph: { type: "article", siteName: dict.nav.brand, title, description, images, publishedTime: a.publishedAt, authors: a.author ? [a.author] : undefined },
     twitter: { card: a.image ? "summary_large_image" : "summary", title, description, images },
   };
 }
@@ -50,6 +52,16 @@ async function ArticleView({ params }: { params: Promise<{ slug: string }> }) {
   const [dict, lang, a] = await Promise.all([getDictionary(), getLocale(), load(params)]);
   return (
     <>
+      <JsonLd
+        data={{
+          "@type": "NewsArticle",
+          headline: a.title,
+          ...(a.image && { image: [a.image] }),
+          datePublished: a.publishedAt,
+          author: a.author ? { "@type": "Person", name: a.author } : { "@type": "Organization", name: dict.nav.brand },
+          publisher: { "@type": "Organization", name: dict.nav.brand },
+        }}
+      />
       <article className="mx-auto mb-12 max-w-[680px] sm:py-4">
         <Link href={`/${lang}/news`} className="inline-flex items-center gap-1 text-sm font-medium text-link hover:underline">
           <Icon name="chevronRight" className="h-4 w-4 rotate-180" /> {dict.news.back}

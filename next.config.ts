@@ -4,6 +4,7 @@ import { IMAGE_HOSTS } from "./src/lib/images";
 const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
+  poweredByHeader: false, // don't advertise the framework in every response
   images: {
     // Team logos, player photos (Sportmonks), news photos (ESPNcricinfo RSS, Sanity). Resized + cached by next/image.
     remotePatterns: IMAGE_HOSTS.map((hostname) => ({ protocol: "https" as const, hostname })),

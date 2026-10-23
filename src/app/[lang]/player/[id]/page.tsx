@@ -4,7 +4,7 @@ import { getPlayer, type BatCareer, type BowlCareer } from "@/lib/cricket";
 import { formatDate } from "@/lib/i18n";
 import { Logo } from "@/components/Logo";
 import { Empty, Section, Skeleton } from "@/components/ui";
-import { getDictionary, getLocale } from "../../dictionaries";
+import { alternates, getDictionary, getLocale } from "../../dictionaries";
 
 const fmt = (n: number | null, d = 2) => (n === null || !Number.isFinite(n) ? "–" : n.toFixed(d));
 const batAvg = (b: BatCareer) => (b.innings - b.notOuts > 0 ? b.runs / (b.innings - b.notOuts) : null);
@@ -17,7 +17,8 @@ const bowlSR = (b: BowlCareer) => (b.wickets ? b.balls / b.wickets : null);
 const style = (s?: string) => (s ? (s[0].toUpperCase() + s.slice(1)).replace(/-(bat|fast|medium|offbreak|legbreak|orthodox)/g, " $1") : undefined);
 
 export async function generateMetadata({ params }: PageProps<"/[lang]/player/[id]">) {
-  return { title: (await getPlayer((await params).id)).name };
+  const { id } = await params;
+  return { title: (await getPlayer(id)).name, alternates: await alternates(`/player/${id}`) };
 }
 
 async function PlayerView({ params }: { params: Promise<{ id: string }> }) {

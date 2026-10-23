@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { getNews } from "@/lib/news";
 import { Empty, NewsCard, NewsFeatured, PageHeader, Skeleton } from "@/components/ui";
-import { getDictionary, getLocale } from "../dictionaries";
+import { getDictionary, alternates, getLocale } from "../dictionaries";
 
 async function NewsList() {
   const [dict, lang] = await Promise.all([getDictionary(), getLocale()]);
@@ -19,7 +19,7 @@ async function NewsList() {
 }
 
 export async function generateMetadata() {
-  return { title: (await getDictionary()).news.title };
+  return { title: (await getDictionary()).news.title, alternates: await alternates("/news") };
 }
 
 export default async function NewsPage() {

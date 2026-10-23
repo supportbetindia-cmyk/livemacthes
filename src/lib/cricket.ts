@@ -8,6 +8,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import * as p from "./provider";
 import type { Match } from "./provider";
+import { hourlyLimit } from "./hourly-limit";
 
 export type * from "./provider";
 export { derived } from "./provider";
@@ -35,11 +36,22 @@ async function cachedCurrentMatches() {
   return p.fetchLive();
 }
 
+// A missing id becomes null (cached), anything else (timeout, limit, outage) still throws and isn't cached.
+const orNull = <T>(promise: Promise<T>) => promise.catch((e) => (e instanceof p.NotFound ? null : Promise.reject(e)));
+
+// Lookups of ids the site doesn't list (cache misses only). Listed matches are never limited.
+const takeUnlisted = hourlyLimit(100);
+function checkUnlisted() {
+  if (!takeUnlisted()) throw new Error("Too many lookups of unlisted matches or players this hour. Try again later.");
+}
+
 async function cachedMatchDetail(id: string) {
   "use cache";
-  const detail = await p.fetchMatchDetail(id);
+  const listed = (await Promise.all([cachedMatches(), cachedCurrentMatches()].map((l) => l.catch(() => [])))).flat();
+  if (!listed.some((m) => m.id === id)) checkUnlisted();
+  const detail = await orNull(p.fetchMatchDetail(id));
   // A finished match never changes; a live one does every ball; an upcoming one gets its toss and XI before the start.
-  if (detail.match.matchEnded) cacheLife("days");
+  if (!detail || detail.match.matchEnded) cacheLife("days");
   else if (detail.match.matchStarted) cacheLife(live);
   else cacheLife(tenMinutes);
   return detail;
@@ -72,7 +84,8 @@ async function cachedTeams() {
 async function cachedPlayer(id: string) {
   "use cache";
   cacheLife("days");
-  return p.fetchPlayer(id);
+  checkUnlisted();
+  return orNull(p.fetchPlayer(id));
 }
 
 async function cachedTeamMatches(id: string) {
@@ -151,7 +164,7 @@ export async function getSeasonStats(seasonId: string) {
 
 export async function getMatchDetail(id: string) {
   await connection();
-  return cachedMatchDetail(validId(id));
+  return (await cachedMatchDetail(validId(id))) ?? notFound();
 }
 
 export async function getSeries(id: string) {
@@ -186,7 +199,7 @@ export async function getHeadToHead(a: string, b: string) {
 
 export async function getPlayer(id: string) {
   await connection();
-  return cachedPlayer(validId(id));
+  return (await cachedPlayer(validId(id))) ?? notFound();
 }
 
 export const upcoming = (ms: Match[]) =>

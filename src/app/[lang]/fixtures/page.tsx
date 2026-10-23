@@ -5,7 +5,7 @@ import { formatDate } from "@/lib/i18n";
 import { MatchCard, grid } from "@/components/MatchCard";
 import { Empty, PageHeader, Skeleton } from "@/components/ui";
 import { Icon } from "@/components/Icon";
-import { getDictionary, getLocale } from "../dictionaries";
+import { getDictionary, alternates, getLocale } from "../dictionaries";
 
 const FORMATS = ["test", "odi", "t20"];
 
@@ -50,7 +50,7 @@ async function Fixtures({ searchParams }: { searchParams: Promise<{ type?: strin
 }
 
 export async function generateMetadata() {
-  return { title: (await getDictionary()).fixtures.title };
+  return { title: (await getDictionary()).fixtures.title, alternates: await alternates("/fixtures") };
 }
 
 export default async function FixturesPage({ searchParams }: PageProps<"/[lang]/fixtures">) {

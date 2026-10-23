@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { getRankings, type Ranking } from "@/lib/cricket";
 import { Empty, PageHeader, Skeleton } from "@/components/ui";
-import { getDictionary } from "../dictionaries";
+import { getDictionary, alternates } from "../dictionaries";
 import { Logo } from "@/components/Logo";
 
 const FORMATS: Ranking["format"][] = ["TEST", "ODI", "T20I"];
@@ -65,7 +65,7 @@ async function Table({ searchParams }: { searchParams: Promise<{ format?: string
 }
 
 export async function generateMetadata() {
-  return { title: (await getDictionary()).rankings.title };
+  return { title: (await getDictionary()).rankings.title, alternates: await alternates("/rankings") };
 }
 
 export default async function RankingsPage({ searchParams }: PageProps<"/[lang]/rankings">) {

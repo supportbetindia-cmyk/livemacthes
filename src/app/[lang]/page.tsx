@@ -3,7 +3,11 @@ import { getCurrentMatches, getMatches, upcoming } from "@/lib/cricket";
 import { getNews } from "@/lib/news";
 import { MatchCarousel } from "@/components/MatchCarousel";
 import { Empty, NewsCard, NewsFeatured, QuickLinks, Section, Skeleton } from "@/components/ui";
-import { getDictionary, getLocale } from "./dictionaries";
+import { alternates, getDictionary, getLocale } from "./dictionaries";
+
+export async function generateMetadata() {
+  return { alternates: await alternates() };
+}
 
 async function TopMatches() {
   const [dict, lang, current, all] = await Promise.all([getDictionary(), getLocale(), getCurrentMatches(), getMatches()]);
@@ -54,6 +58,8 @@ export default async function Home() {
   ].map(([href, label]) => ({ href: `/${lang}${href}`, label }));
   return (
     <>
+      {/* The page's main heading for Google and screen readers; the match cards already say it visually. */}
+      <h1 className="sr-only">{dict.seo.homeTitle}</h1>
       <Suspense fallback={<div className="mb-10 flex gap-5"><Skeleton /><Skeleton /><Skeleton /></div>}>
         <TopMatches />
       </Suspense>

@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { getTeams } from "@/lib/cricket";
 import { PageHeader, Section, Skeleton } from "@/components/ui";
 import { Icon } from "@/components/Icon";
-import { getDictionary, getLocale } from "../dictionaries";
+import { getDictionary, alternates, getLocale } from "../dictionaries";
 import { Logo } from "@/components/Logo";
 
 async function TeamList() {
@@ -36,7 +36,7 @@ async function TeamList() {
 }
 
 export async function generateMetadata() {
-  return { title: (await getDictionary()).teams.title };
+  return { title: (await getDictionary()).teams.title, alternates: await alternates("/teams") };
 }
 
 export default async function TeamsPage() {

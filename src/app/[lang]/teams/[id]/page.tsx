@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { getTeamMatches, getTeams } from "@/lib/cricket";
 import { MatchCard, grid } from "@/components/MatchCard";
 import { Empty, Section, Skeleton } from "@/components/ui";
-import { getDictionary, getLocale } from "../../dictionaries";
+import { alternates, getDictionary, getLocale } from "../../dictionaries";
 import { Logo } from "@/components/Logo";
 
 async function getTeam(id: string) {
@@ -13,7 +13,8 @@ async function getTeam(id: string) {
 }
 
 export async function generateMetadata({ params }: PageProps<"/[lang]/teams/[id]">) {
-  return { title: (await getTeam((await params).id)).name };
+  const { id } = await params;
+  return { title: (await getTeam(id)).name, alternates: await alternates(`/teams/${id}`) };
 }
 
 async function TeamView({ params }: { params: Promise<{ id: string }> }) {

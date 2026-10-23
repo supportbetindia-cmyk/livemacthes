@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Inter, Noto_Sans_Devanagari } from "next/font/google";
-import { lang } from "next/root-params";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { InlineScript } from "@/components/InlineScript";
 import { ThemeSync } from "@/components/ThemeSync";
 import { LOCALES } from "@/lib/i18n";
-import { getDictionary } from "./dictionaries";
+import { SITE_URL } from "@/lib/site";
+import { getDictionary, getLocale } from "./dictionaries";
 import "../globals.css";
 
 // One Latin font (Inter) for everything. The Hindi font isn't preloaded: its CSS only covers Devanagari
@@ -20,9 +20,10 @@ export const generateStaticParams = () => LOCALES.map((lang) => ({ lang }));
 export async function generateMetadata(): Promise<Metadata> {
   const dict = await getDictionary();
   return {
+    metadataBase: new URL(SITE_URL),
     title: { default: `${dict.nav.brand} – Live Cricket Scores & News`, template: `%s | ${dict.nav.brand}` },
-    description: "Live cricket scores, fixtures, series, rankings and news.",
-    alternates: { languages: Object.fromEntries(LOCALES.map((l) => [l, `/${l}`])) },
+    description: dict.seo.description,
+    openGraph: { type: "website", siteName: dict.nav.brand },
   };
 }
 
@@ -30,9 +31,8 @@ export async function generateMetadata(): Promise<Metadata> {
 const themeScript = `(function(){try{var t=localStorage.getItem("theme")||"system";if(t==="system")t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";document.documentElement.dataset.theme=t}catch(e){}})()`;
 
 export default async function RootLayout({ children }: LayoutProps<"/[lang]">) {
-  const dict = await getDictionary();
   return (
-    <html lang={await lang()}  suppressHydrationWarning className={`${inter.variable} ${devanagari.variable}`}>
+    <html lang={await getLocale()} suppressHydrationWarning className={`${inter.variable} ${devanagari.variable}`}>
       <head>
         <InlineScript html={themeScript} />
       </head>

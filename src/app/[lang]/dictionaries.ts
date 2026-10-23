@@ -1,5 +1,6 @@
 import { lang } from "next/root-params";
 import { notFound } from "next/navigation";
+import { DEFAULT_LOCALE } from "@/lib/i18n";
 
 // Add a language: create dictionaries/xx.json, add it here and in LANGUAGES.
 const dictionaries = {
@@ -20,4 +21,11 @@ export async function getLocale(): Promise<Locale> {
 
 export async function getDictionary(): Promise<Dict> {
   return dictionaries[await getLocale()]();
+}
+
+// Canonical + hreflang links for a page ("" = home, "/news"): tells Google which URL is the page and pairs its
+// English and Hindi versions. Every page sets its own, otherwise it would inherit the home page's.
+export async function alternates(path = "") {
+  const languages = Object.fromEntries(Object.keys(dictionaries).map((l) => [l, `/${l}${path}`]));
+  return { canonical: `/${await getLocale()}${path}`, languages: { ...languages, "x-default": `/${DEFAULT_LOCALE}${path}` } };
 }

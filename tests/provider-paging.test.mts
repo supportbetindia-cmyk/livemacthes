@@ -19,7 +19,7 @@ process.env.SPORTMONKS_BUDGET_DATABASE_URL = "https://example.invalid";
 process.env.SPORTMONKS_DAILY_LIMIT = "1000";
 process.env.SPORTMONKS_WORKER_RESERVE = "10";
 
-const { fetchSeries, MAX_PAGES } = await import("../src/lib/provider.ts");
+const { fetchSeries, fetchMatchDetail, MAX_PAGES, NotFound } = await import("../src/lib/provider.ts");
 
 // Fake Sportmonks: `pages[n]` is the list of match ids on page n+1; `lastPage` is what page 1 reports (undefined = no meta).
 let pages: number[][] = [];
@@ -53,6 +53,15 @@ test("a list without page info is one request", async () => {
 test("a match that moved between pages is kept once", async () => {
   setup([[1, 2], [2, 3]], 2);
   assert.deepEqual(await ids(), [1, 2, 3]);
+});
+
+test("a missing id is NotFound (cacheable); other errors are not", async (t) => {
+  const reply = (status: number) => { budget = null; t.mock.method(globalThis, "fetch", async () => ({ ok: false, status, json: async () => ({ status: "error", message: "x" }) })); };
+  reply(404);
+  await assert.rejects(fetchMatchDetail("9999999"), NotFound);
+  t.mock.restoreAll();
+  reply(500);
+  await assert.rejects(fetchMatchDetail("1"), (e) => !(e instanceof NotFound));
 });
 
 test(`stops at ${MAX_PAGES} pages to protect the request budget`, async () => {

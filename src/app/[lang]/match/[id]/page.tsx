@@ -13,12 +13,23 @@ import { AutoRefresh } from "@/components/AutoRefresh";
 import { Icon } from "@/components/Icon";
 import { Logo } from "@/components/Logo";
 import { Empty, Skeleton } from "@/components/ui";
-import { getDictionary, getLocale } from "../../dictionaries";
+import { alternates, getDictionary, getLocale } from "../../dictionaries";
+import { JsonLd } from "@/components/JsonLd";
 import { PlayerLink } from "@/components/PlayerLink";
 
+// Google result + share preview: "India vs Australia, 2nd ODI live score, scorecard… India won by 5 wkts".
 export async function generateMetadata({ params }: PageProps<"/[lang]/match/[id]">) {
-  const { match } = await getMatchDetail((await params).id);
-  return { title: match.name };
+  const { id } = await params;
+  const [dict, { match }] = await Promise.all([getDictionary(), getMatchDetail(id)]);
+  const title = match.seriesName ? `${match.name}, ${match.seriesName}` : match.name;
+  const description = [dict.seo.match.replace("{match}", match.name), match.matchStarted && match.status].filter(Boolean).join(" ");
+  return {
+    title,
+    description,
+    alternates: await alternates(`/match/${id}`),
+    openGraph: { type: "website", siteName: dict.nav.brand, title, description },
+    twitter: { card: "summary", title, description },
+  };
 }
 
 // Tabs are links (?tab=summary): each one is a server render, and the match data is cached, so switching costs no API request.
@@ -38,6 +49,18 @@ async function MatchView({ params, searchParams }: Pick<PageProps<"/[lang]/match
   return (
     <>
       {live && <AutoRefresh matchId={match.id} />}
+      <JsonLd
+        data={{
+          "@type": "SportsEvent",
+          name: match.name,
+          sport: "Cricket",
+          startDate: match.dateTimeGMT.endsWith("Z") ? match.dateTimeGMT : `${match.dateTimeGMT}Z`,
+          eventStatus: "https://schema.org/EventScheduled",
+          location: { "@type": "Place", name: match.venue || match.name },
+          competitor: match.teams.map((name) => ({ "@type": "SportsTeam", name })),
+          ...(match.seriesName && { superEvent: { "@type": "SportsEvent", name: match.seriesName } }),
+        }}
+      />
       <h1 className="mb-3 text-sm text-muted md:text-base">{match.name}{match.seriesName && `, ${match.seriesName}`}</h1>
       <LiveScore match={match} upcomingLabel={formatDate(match.dateTimeGMT, lang)} />
 

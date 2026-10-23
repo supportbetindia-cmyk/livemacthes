@@ -51,6 +51,10 @@ const BASE = "https://cricket.sportmonks.com/api/v2.0";
 
 type SmResponse = { data: unknown; meta?: { last_page?: number } };
 
+// The id doesn't exist (or isn't in our plan): Sportmonks answers 404. Callers cache this, so a made-up id
+// costs one request ever, not one per visit.
+export class NotFound extends Error {}
+
 // One API call (counted against the shared request budget).
 async function smResponse(path: string, params: Record<string, string>, source: RequestSource): Promise<SmResponse> {
   const token = process.env.SPORTMONKS_API_TOKEN;
@@ -58,6 +62,7 @@ async function smResponse(path: string, params: Record<string, string>, source: 
   await reserveProviderRequest(source);
   const res = await fetch(`${BASE}/${path}?${new URLSearchParams({ api_token: token, ...params })}`, { signal: AbortSignal.timeout(10000) });
   const json = await res.json();
+  if (res.status === 404) throw new NotFound(`Sportmonks ${path}: not found`);
   if (!res.ok || json.status === "error") throw new Error(`Sportmonks ${path}: ${JSON.stringify(json.message ?? res.status)}`);
   return json;
 }

@@ -3,11 +3,12 @@ import { getPointsTable, getSeries } from "@/lib/cricket";
 import { MatchCard, grid } from "@/components/MatchCard";
 import { PageHeader, Section, Skeleton } from "@/components/ui";
 import { FormatBadges } from "@/components/FormatBadges";
-import { getDictionary, getLocale } from "../../dictionaries";
+import { alternates, getDictionary, getLocale } from "../../dictionaries";
 import { Logo } from "@/components/Logo";
 
 export async function generateMetadata({ params }: PageProps<"/[lang]/series/[id]">) {
-  return { title: (await getSeries((await params).id)).info.name };
+  const { id } = await params;
+  return { title: (await getSeries(id)).info.name, alternates: await alternates(`/series/${id}`) };
 }
 
 async function SeriesView({ params }: { params: Promise<{ id: string }> }) {
