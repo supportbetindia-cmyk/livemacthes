@@ -5,11 +5,14 @@ import type { Match } from "./provider.ts";
 
 type Snapshot = Pick<Match, "score" | "matchEnded">;
 
+// Overs are base 6: 18.2 = 18 overs + 2 balls = 110 balls.
+export const oversToBalls = (o: number) => Math.floor(o) * 6 + Math.round((o % 1) * 10);
+
 // One number that only grows as the match goes on: finished > more innings > more balls in the latest innings >
-// more runs (wides and no-balls add runs without a ball). Overs come as 18.2 = 18 overs + 2 balls.
+// more runs (wides and no-balls add runs without a ball).
 export function progress({ score = [], matchEnded }: Snapshot) {
   const last = score.at(-1);
-  const balls = last ? Math.floor(last.o) * 6 + Math.round((last.o % 1) * 10) : 0;
+  const balls = last ? oversToBalls(last.o) : 0;
   return (matchEnded ? 1e9 : 0) + score.length * 1e6 + balls * 1e3 + (last?.r ?? 0);
 }
 

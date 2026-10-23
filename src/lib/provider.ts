@@ -3,6 +3,7 @@
 // No Next.js imports here, so the standalone live worker (scripts/live-worker.mts) can use it too.
 
 import { reserveProviderRequest, type RequestSource } from "./provider-budget.ts";
+import { oversToBalls } from "./score-progress.ts";
 
 export type Score = { r: number; w: number; o: number; inning: string };
 export type TeamInfo = { id?: string; name: string; shortname?: string; img?: string };
@@ -22,6 +23,14 @@ export type Match = {
   matchEnded: boolean;
   seriesName?: string;
   winnerId?: string; // team id of the winner; unset for no result / not finished
+  maxOvers?: number; // overs per innings (rain-reduced if so); unset for Tests
+  target?: number; // only when rain rules set one; otherwise first innings + 1
+  now?: LiveNow; // live matches only
+};
+// Who is batting and bowling right now. Pushed by the live worker on every change, like the score.
+export type LiveNow = {
+  batters: { id?: string; name: string; r: number; b: number; fours: number; sixes: number }[];
+  bowler?: { id?: string; name: string; o: number; m: number; r: number; w: number };
 };
 export type Series = { id: string; name: string; startDate: string; endDate: string; odi: number; t20: number; test: number; matches: number };
 export type Team = { id: string; name: string; genericFlag?: string; national: boolean };
@@ -30,12 +39,15 @@ export type Scorecard = {
   inning: string;
   batting: { batsman: { name: string; id?: string }; "dismissal-text"?: string; r: number; b: number; "4s": number; "6s": number; sr: number }[];
   bowling: { bowler: { name: string; id?: string }; o: number; m: number; r: number; w: number; eco: number }[];
+  fow?: { wicket: number; score: number; over: number; name: string }[];
+  partnerships?: { runs: number; balls: number; names: [string, string] }[]; // last one may be unbroken
 }[];
 export type LineupPlayer = { id: string; name: string; img?: string; role?: string; captain: boolean; keeper: boolean };
 export type MatchInfo = {
   toss?: { team: string; elected: string }; // elected: "batting" | "bowling"
   playerOfMatch?: { id: string; name: string; img?: string };
   lineups: { team: string; players: LineupPlayer[]; bench: LineupPlayer[] }[]; // empty until the teams are announced
+  lastOver?: { over: number; balls: string[] }; // latest over: "1", "4", "W", "wd", "nb+1", "1lb"
 };
 export type Ranking ={ format: "TEST" | "ODI" | "T20I"; gender: "men" | "women"; teams: { position: number; name: string; img?: string; matches: number; points: number; rating: number }[] };
 export type League = { id: string; name: string; code: string; seasonId: string; img?: string };
@@ -105,9 +117,14 @@ type SmFixture = {
   season?: { name: string };
   batting?: {
     team_id: number; scoreboard: string; sort: number; active: boolean; score: number; ball: number; four_x: number; six_x: number; rate: number;
+    fow_score?: number; fow_balls?: number; // team score and over when this batter got out (0 if not out)
     batsman?: SmPlayer; result?: { name: string; is_wicket?: boolean; out?: boolean }; catchstump?: SmPlayer; bowler?: SmPlayer; runoutby?: SmPlayer;
   }[];
-  bowling?: { team_id: number; scoreboard: string; sort: number; overs: number; medians: number; runs: number; wickets: number; rate: number; bowler?: SmPlayer }[];
+  bowling?: { team_id: number; scoreboard: string; sort: number; active: boolean; overs: number; medians: number; runs: number; wickets: number; rate: number; bowler?: SmPlayer }[];
+  // Every ball of the match ("14.3" = over 15, ball 3). Wides repeat the ball number; `legal` is false for them.
+  balls?: { id: number; ball: number; scoreboard: string; score: { runs: number; bye: number; leg_bye: number; noball: number; is_wicket: boolean; ball: boolean } }[];
+  rpc_overs?: number | string | null; // rain rules: revised overs / target
+  rpc_target?: number | string | null;
   toss_won_team_id?: number | null;
   winner_team_id?: number | null;
   elected?: string | null;
@@ -116,7 +133,10 @@ type SmFixture = {
 };
 
 const BASIC = "localteam,visitorteam,runs,venue,league,season";
-const SCORECARD = `${BASIC},batting.batsman,batting.result,batting.catchstump,batting.bowler,batting.runoutby,bowling.bowler,lineup,manofmatch`;
+// Live list: + who is batting/bowling now (~20 KB per live match; the worker pushes it to Firebase).
+const LIVE = `${BASIC},batting.batsman,bowling.bowler`;
+// balls (~300 KB a match) only feed the "this over" strip; the mapped result keeps just that over.
+const SCORECARD = `${BASIC},batting.batsman,batting.result,batting.catchstump,batting.bowler,batting.runoutby,bowling.bowler,lineup,manofmatch,balls`;
 
 // ---------- Mapping ----------
 
@@ -140,8 +160,26 @@ function innings(f: SmFixture) {
     });
 }
 
+// Overs per innings: rain-revised, else the format's; none for Tests (no required rate there).
+const maxOvers = (f: SmFixture) =>
+  Number(f.rpc_overs) || (/t10/i.test(f.type) ? 10 : /t20/i.test(f.type) ? 20 : /odi|list a/i.test(f.type) ? 50 : undefined);
+
+// Batters at the crease and the current bowler, from the latest innings.
+function toNow(f: SmFixture): LiveNow | undefined {
+  const board = [...new Set((f.batting ?? []).map((b) => b.scoreboard))].sort().at(-1);
+  const batters = (f.batting ?? [])
+    .filter((b) => b.scoreboard === board && b.active)
+    .sort((a, b) => a.sort - b.sort)
+    .map((b) => ({ id: pid(b.batsman), name: b.batsman?.fullname ?? "", r: b.score, b: b.ball, fours: b.four_x, sixes: b.six_x }));
+  const bw = (f.bowling ?? []).find((b) => b.scoreboard === board && b.active);
+  const bowler = bw && { id: pid(bw.bowler), name: bw.bowler?.fullname ?? "", o: bw.overs, m: bw.medians, r: bw.runs, w: bw.wickets };
+  return batters.length || bowler ? { batters, ...(bowler && { bowler }) } : undefined;
+}
+
 function toMatch(f: SmFixture): Match {
   const started = !NOT_STARTED.includes(f.status);
+  const ended = ENDED.includes(f.status);
+  const now = started && !ended ? toNow(f) : undefined; // after the end Sportmonks leaves stale "active" flags
   return {
     id: String(f.id),
     name: `${f.localteam.name} vs ${f.visitorteam.name}${f.round ? `, ${f.round}` : ""}`,
@@ -156,8 +194,11 @@ function toMatch(f: SmFixture): Match {
     series_id: String(f.season_id),
     seriesName: seriesTitle(f) || undefined,
     matchStarted: started,
-    matchEnded: ENDED.includes(f.status),
+    matchEnded: ended,
     winnerId: f.winner_team_id ? String(f.winner_team_id) : undefined,
+    maxOvers: maxOvers(f),
+    target: Number(f.rpc_target) || undefined,
+    ...(now && { now }),
   };
 }
 
@@ -177,12 +218,62 @@ function dismissal(b: NonNullable<SmFixture["batting"]>[number]) {
   return b.result?.name ?? "";
 }
 
+type SmBatting = NonNullable<SmFixture["batting"]>[number];
+
+// Fall of wickets and partnerships of one innings, from each dismissed batter's fow_score / fow_balls.
+// Batters come in by batting order: when one is out, the other one at the crease was the partner and the next
+// batter in the order joins. The last partnership runs to the current total (unbroken if the innings goes on).
+// ponytail: retired-hurt batters aren't modelled (they leave without a wicket); rare, the pairs after it shift.
+export function wicketsAndPartnerships(rows: SmBatting[], total?: { score: number; overs: number }) {
+  const order = [...rows].sort((a, b) => a.sort - b.sort);
+  const name = (b: SmBatting) => b.batsman?.fullname ?? "";
+  const out = order.filter((b) => (b.fow_balls ?? 0) > 0).sort((a, b) => a.fow_balls! - b.fow_balls! || a.fow_score! - b.fow_score!);
+  const crease = order.slice(0, 2);
+  let next = 2;
+  let prev = { score: 0, balls: 0 };
+  const fow: NonNullable<Scorecard[number]["fow"]> = [];
+  const partnerships: NonNullable<Scorecard[number]["partnerships"]> = [];
+  for (const b of out) {
+    const at = { score: b.fow_score ?? 0, balls: oversToBalls(b.fow_balls ?? 0) };
+    fow.push({ wicket: fow.length + 1, score: at.score, over: b.fow_balls ?? 0, name: name(b) });
+    partnerships.push({ runs: at.score - prev.score, balls: at.balls - prev.balls, names: [name(crease[0] ?? b), name(crease[1] ?? b)] });
+    const i = crease.indexOf(b);
+    crease.splice(i < 0 ? 0 : i, 1); // i < 0 only on odd data: drop the longest-staying batter
+    if (order[next]) crease.push(order[next++]);
+    prev = at;
+  }
+  if (total && crease.length === 2 && total.score > prev.score) {
+    partnerships.push({ runs: total.score - prev.score, balls: oversToBalls(total.overs) - prev.balls, names: [name(crease[0]), name(crease[1])] });
+  }
+  return { fow, partnerships };
+}
+
+// "1", "4", "W", "wd", "3wd", "nb", "nb+4", "1lb", "2b"
+export function ballLabel(s: NonNullable<SmFixture["balls"]>[number]["score"]) {
+  if (s.is_wicket) return "W";
+  if (s.noball) return s.runs > 1 ? `nb+${s.runs - 1}` : "nb";
+  if (!s.ball) return s.runs > 1 ? `${s.runs}wd` : "wd";
+  if (s.leg_bye) return `${s.leg_bye}lb`;
+  if (s.bye) return `${s.bye}b`;
+  return String(s.runs);
+}
+
+// The latest over of the latest innings (complete or in progress).
+function lastOver(f: SmFixture): MatchInfo["lastOver"] {
+  const balls = [...(f.balls ?? [])].sort((a, b) => a.id - b.id);
+  const last = balls.at(-1);
+  if (!last) return undefined;
+  const over = Math.floor(last.ball);
+  return { over: over + 1, balls: balls.filter((b) => b.scoreboard === last.scoreboard && Math.floor(b.ball) === over).map((b) => ballLabel(b.score)) };
+}
+
 function toScorecard(f: SmFixture): Scorecard {
   // Scoreboards S1, S2, ... are innings in batting order; label them like the match score.
-  const labels = innings(f).map((i) => i.label);
+  const inns = innings(f);
   const boards = [...new Set((f.batting ?? []).map((b) => b.scoreboard))].sort();
   return boards.map((board, i) => ({
-    inning: labels[i] ?? board,
+    inning: inns[i]?.label ?? board,
+    ...wicketsAndPartnerships((f.batting ?? []).filter((b) => b.scoreboard === board), inns[i] && { score: inns[i].run.score, overs: inns[i].run.overs }),
     batting: (f.batting ?? [])
       .filter((b) => b.scoreboard === board)
       .sort((a, b) => a.sort - b.sort)
@@ -210,6 +301,7 @@ function toInfo(f: SmFixture): MatchInfo {
         return { team: t.name, players: squad.filter((p) => !p.lineup.substitution).map(player), bench: squad.filter((p) => p.lineup.substitution).map(player) };
       })
       .filter((l) => l.players.length > 0),
+    lastOver: lastOver(f),
   };
 }
 
@@ -224,7 +316,7 @@ export function seriesFromMatches(id: string, ms: Match[]): Series {
 
 const day = (offset: number) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10);
 
-export const fetchLive = async (source: RequestSource = "web") => (await sm<SmFixture[]>("livescores", { include: BASIC }, source)).map(toMatch);
+export const fetchLive = async (source: RequestSource = "web") => (await sm<SmFixture[]>("livescores", { include: LIVE }, source)).map(toMatch);
 
 // Recent results + upcoming fixtures window (-4..+21 days), all pages: a bigger plan has well over 100 matches in it.
 export async function fetchMatches() {

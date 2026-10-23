@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { Match } from "@/lib/provider";
 import { isNotBehind } from "@/lib/score-progress";
 
-type LivePatch = Pick<Match, "score" | "status" | "matchStarted" | "matchEnded"> & { updatedAt?: number }; // updatedAt: ms, set by the worker
+type LivePatch = Pick<Match, "score" | "status" | "matchStarted" | "matchEnded" | "now"> & { updatedAt?: number }; // updatedAt: ms, set by the worker
 
 const databaseURL = process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL;
 
@@ -37,5 +37,5 @@ export function useLiveScores(enabled: boolean): Record<string, LivePatch> {
 // crash) Firebase keeps its last score, and showing it would make the score jump backwards.
 export function withLive(m: Match, live: Record<string, LivePatch>): Match {
   const p = live[m.id];
-  return p && isNotBehind(p, m) ? { ...m, ...p, score: p.score ?? m.score } : m;
+  return p && isNotBehind(p, m) ? { ...m, ...p, score: p.score ?? m.score, now: p.now ?? m.now } : m;
 }

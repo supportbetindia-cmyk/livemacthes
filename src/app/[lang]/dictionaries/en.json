@@ -61,7 +61,15 @@
     "lastN": "(Last {n} matches)",
     "won": "{team} Won",
     "noResult": "No result",
-    "onBench": "On Bench"
+    "onBench": "On Bench",
+    "over": "Over {n}",
+    "need": "{team} need {runs} runs in {balls} balls",
+    "target": "Target",
+    "crr": "CRR",
+    "rrr": "RRR",
+    "fow": "Fall of wickets",
+    "partnerships": "Partnerships",
+    "ballsShort": "b"
   },
   "fixtures": {
     "title": "Fixtures",

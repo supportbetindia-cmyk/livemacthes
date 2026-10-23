@@ -61,7 +61,15 @@
     "lastN": "(पिछले {n} मैच)",
     "won": "{team} जीता",
     "noResult": "कोई परिणाम नहीं",
-    "onBench": "बेंच पर"
+    "onBench": "बेंच पर",
+    "over": "ओवर {n}",
+    "need": "{team} को {balls} गेंदों में {runs} रन चाहिए",
+    "target": "लक्ष्य",
+    "crr": "CRR",
+    "rrr": "RRR",
+    "fow": "विकेट पतन",
+    "partnerships": "साझेदारियाँ",
+    "ballsShort": "गें"
   },
   "fixtures": {
     "title": "मैच कार्यक्रम",

@@ -11,7 +11,7 @@ const LIVE_SECONDS = seconds("LIVE_POLL_SECONDS", 5, 5);
 const IDLE_SECONDS = seconds("IDLE_POLL_SECONDS", 120, 60);
 const databaseURL = process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL;
 
-type Live = Pick<Match, "score" | "status" | "matchStarted" | "matchEnded">;
+type Live = Pick<Match, "score" | "status" | "matchStarted" | "matchEnded" | "now">;
 
 async function connect() {
   if (!databaseURL) return null;
@@ -32,7 +32,7 @@ async function tick() {
     matches
       .filter((m) => m.matchStarted)
       .map((m) => {
-        const data: Live = { score: m.score ?? [], status: m.status, matchStarted: m.matchStarted, matchEnded: m.matchEnded };
+        const data: Live = { score: m.score ?? [], status: m.status, matchStarted: m.matchStarted, matchEnded: m.matchEnded, now: m.now };
         return [m.id, JSON.stringify(data)];
       }),
   );

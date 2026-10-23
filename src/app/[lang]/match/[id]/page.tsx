@@ -13,7 +13,8 @@ import { AutoRefresh } from "@/components/AutoRefresh";
 import { Icon } from "@/components/Icon";
 import { Logo } from "@/components/Logo";
 import { Empty, Skeleton } from "@/components/ui";
-import { alternates, getDictionary, getLocale } from "../../dictionaries";
+import { alternates, getDictionary, getLocale, type Dict } from "../../dictionaries";
+import type { Scorecard } from "@/lib/provider";
 import { JsonLd } from "@/components/JsonLd";
 import { PlayerLink } from "@/components/PlayerLink";
 
@@ -62,7 +63,7 @@ async function MatchView({ params, searchParams }: Pick<PageProps<"/[lang]/match
         }}
       />
       <h1 className="mb-3 text-sm text-muted md:text-base">{match.name}{match.seriesName && `, ${match.seriesName}`}</h1>
-      <LiveScore match={match} upcomingLabel={formatDate(match.dateTimeGMT, lang)} />
+      <LiveScore match={match} upcomingLabel={formatDate(match.dateTimeGMT, lang)} lastOver={info.lastOver} labels={dict.match} lang={lang} />
 
       <nav className="mt-2 mb-6 flex gap-6 overflow-x-auto whitespace-nowrap border-b border-border [scrollbar-width:none]" aria-label={match.name}>
         {TABS.map((t) => (
@@ -189,9 +190,49 @@ async function MatchView({ params, searchParams }: Pick<PageProps<"/[lang]/match
                     </tbody>
                   </table>
                 </div>
+                <Wickets inn={inn} dict={dict.match} />
               </div>
             );
           })}
+        </div>
+      )}
+    </>
+  );
+}
+
+// Under each innings: fall of wickets ("52-1 (Makhanya, 5.4)") and partnerships with a bar for their size.
+function Wickets({ inn, dict }: { inn: Scorecard[number]; dict: Dict["match"] }) {
+  const { fow = [], partnerships = [] } = inn;
+  const best = Math.max(1, ...partnerships.map((p) => p.runs));
+  const label = "mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted";
+  return (
+    <>
+      {fow.length > 0 && (
+        <div className="border-t border-border px-4 py-3 text-sm">
+          <p className={label}>{dict.fow}</p>
+          <p className="flex flex-wrap gap-x-4 gap-y-1 text-muted">
+            {fow.map((w) => (
+              <span key={w.wicket}><b className="tabular-nums text-foreground">{w.score}-{w.wicket}</b> ({w.name}, {w.over})</span>
+            ))}
+          </p>
+        </div>
+      )}
+      {partnerships.length > 0 && (
+        <div className="border-t border-border px-4 py-3 text-sm">
+          <p className={label}>{dict.partnerships}</p>
+          <ul className="flex flex-col gap-2.5">
+            {partnerships.map((p, i) => (
+              <li key={i}>
+                <div className="flex justify-between gap-3">
+                  <span className="truncate">{p.names.join(" & ")}</span>
+                  <span className="shrink-0 tabular-nums"><b>{p.runs}</b> <span className="text-muted">({p.balls}{dict.ballsShort})</span></span>
+                </div>
+                <div className="mt-1 h-1 overflow-hidden rounded-full bg-raised" role="presentation">
+                  <div className="h-full rounded-full bg-accent/70" style={{ width: `${(p.runs / best) * 100}%` }} />
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </>

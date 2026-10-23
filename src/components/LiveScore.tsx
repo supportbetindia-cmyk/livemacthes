@@ -1,13 +1,16 @@
 "use client";
 
-import type { Match } from "@/lib/provider";
+import type { Match, MatchInfo } from "@/lib/provider";
+import { LivePanel, type LiveLabels } from "./match/LivePanel";
 import { runs } from "./MatchCard";
 import { useLiveScores, withLive } from "./useLiveScores";
 import { Logo } from "./Logo";
 
 // Match page hero (CREX style): team | status | team, updated in real time from Firebase when configured.
 // Always dark, in both themes, like a broadcast scoreboard.
-export function LiveScore({ match: initial, upcomingLabel }: { match: Match; upcomingLabel: string }) {
+type Props = { match: Match; upcomingLabel: string; lastOver?: MatchInfo["lastOver"]; labels: LiveLabels; lang: string };
+
+export function LiveScore({ match: initial, upcomingLabel, lastOver, labels, lang }: Props) {
   const match = withLive(initial, useLiveScores(initial.matchStarted && !initial.matchEnded));
   const live = match.matchStarted && !match.matchEnded;
   const side = (i: number) => {
@@ -30,14 +33,17 @@ export function LiveScore({ match: initial, upcomingLabel }: { match: Match; upc
     );
   };
   return (
-    // Phone: both teams on one row, status below. Desktop: team | status | team.
-    <div className="grid grid-cols-2 items-center gap-x-3 gap-y-4 rounded-xl bg-[#1c1b19] px-4 py-5 md:grid-cols-[1fr_auto_1fr] md:gap-8 md:px-10 md:py-10">
-      {side(0)}
-      <p className={`order-last col-span-2 text-center text-sm font-semibold md:order-none md:col-span-1 md:max-w-xs md:text-2xl ${live ? "text-red-400" : "text-amber-400"}`}>
-        {live && <span className="mr-1.5 inline-block h-2 w-2 animate-pulse rounded-full bg-current align-middle" />}
-        {match.matchStarted ? match.status : upcomingLabel}
-      </p>
-      {side(1)}
-    </div>
+    <>
+      {/* Phone: both teams on one row, status below. Desktop: team | status | team. */}
+      <div className="grid grid-cols-2 items-center gap-x-3 gap-y-4 rounded-xl bg-[#1c1b19] px-4 py-5 md:grid-cols-[1fr_auto_1fr] md:gap-8 md:px-10 md:py-10">
+        {side(0)}
+        <p className={`order-last col-span-2 text-center text-sm font-semibold md:order-none md:col-span-1 md:max-w-xs md:text-2xl ${live ? "text-red-400" : "text-amber-400"}`}>
+          {live && <span className="mr-1.5 inline-block h-2 w-2 animate-pulse rounded-full bg-current align-middle" />}
+          {match.matchStarted ? match.status : upcomingLabel}
+        </p>
+        {side(1)}
+      </div>
+      {live && <LivePanel match={match} lastOver={lastOver} labels={labels} lang={lang} />}
+    </>
   );
 }
