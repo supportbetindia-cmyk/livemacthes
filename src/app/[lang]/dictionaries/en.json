@@ -69,7 +69,13 @@
     "rrr": "RRR",
     "fow": "Fall of wickets",
     "partnerships": "Partnerships",
-    "ballsShort": "b"
+    "ballsShort": "b",
+    "commentary": "Commentary",
+    "commentaryLive": "Live",
+    "commentaryOver": "Over by over",
+    "commentaryTo": "to",
+    "noCommentary": "Ball-by-ball commentary will appear once play starts.",
+    "wktShort": "w"
   },
   "fixtures": {
     "title": "Fixtures",

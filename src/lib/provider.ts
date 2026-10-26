@@ -49,6 +49,16 @@ export type MatchInfo = {
   lineups: { team: string; players: LineupPlayer[]; bench: LineupPlayer[] }[]; // empty until the teams are announced
   lastOver?: { over: number; balls: string[] }; // latest over: "1", "4", "W", "wd", "nb+1", "1lb"
 };
+// One delivery, for the Commentary tab. Oldest first; the UI reverses for the "Live" feed and groups for "Over".
+export type BallEvent = {
+  inning: string; // innings label, matches the scorecard
+  over: number; // 1-based over this ball belongs to
+  label: string; // "4", "W", "wd", "1lb"… (same chips as the live panel)
+  runs: number; // total runs off the ball, extras included
+  wicket: boolean;
+  batsman?: string;
+  bowler?: string;
+};
 export type Ranking ={ format: "TEST" | "ODI" | "T20I"; gender: "men" | "women"; teams: { position: number; name: string; img?: string; matches: number; points: number; rating: number }[] };
 export type League = { id: string; name: string; code: string; seasonId: string; img?: string };
 export type PlayerStat = {
@@ -131,7 +141,8 @@ type SmFixture = {
   }[];
   bowling?: { team_id: number; scoreboard: string; sort: number; active: boolean; overs: number; medians: number; runs: number; wickets: number; rate: number; bowler?: SmPlayer }[];
   // Every ball of the match ("14.3" = over 15, ball 3). Wides repeat the ball number; `legal` is false for them.
-  balls?: { id: number; ball: number; scoreboard: string; score: { runs: number; bye: number; leg_bye: number; noball: number; is_wicket: boolean; ball: boolean } }[];
+  balls?: { id: number; ball: number; scoreboard: string; batsman_id?: number; bowler_id?: number;
+    score: { runs: number; bye: number; leg_bye: number; noball: number; is_wicket: boolean; ball: boolean } }[];
   rpc_overs?: number | string | null; // rain rules: revised overs / target
   rpc_target?: number | string | null;
   toss_won_team_id?: number | null;
@@ -276,6 +287,27 @@ function lastOver(f: SmFixture): MatchInfo["lastOver"] {
   return { over: over + 1, balls: balls.filter((b) => b.scoreboard === last.scoreboard && Math.floor(b.ball) === over).map((b) => ballLabel(b.score)) };
 }
 
+// Every ball of the match, oldest first. Names come from the scorecard rows, so no extra API include is needed.
+export function toCommentary(f: SmFixture): BallEvent[] {
+  const name = new Map<number, string>();
+  for (const b of f.batting ?? []) if (b.batsman?.id) name.set(b.batsman.id, b.batsman.fullname);
+  for (const b of f.bowling ?? []) if (b.bowler?.id) name.set(b.bowler.id, b.bowler.fullname);
+  const inns = innings(f);
+  const boards = [...new Set((f.balls ?? []).map((b) => b.scoreboard))].sort();
+  const label = (sb: string) => inns[boards.indexOf(sb)]?.label ?? sb;
+  return [...(f.balls ?? [])]
+    .sort((a, b) => a.id - b.id)
+    .map((b) => ({
+      inning: label(b.scoreboard),
+      over: Math.floor(b.ball) + 1,
+      label: ballLabel(b.score),
+      runs: b.score.runs + (b.score.bye || 0) + (b.score.leg_bye || 0),
+      wicket: b.score.is_wicket,
+      batsman: b.batsman_id ? name.get(b.batsman_id) : undefined,
+      bowler: b.bowler_id ? name.get(b.bowler_id) : undefined,
+    }));
+}
+
 function toScorecard(f: SmFixture): Scorecard {
   // Scoreboards S1, S2, ... are innings in batting order; label them like the match score.
   const inns = innings(f);
@@ -336,7 +368,7 @@ export async function fetchMatches() {
 // One request with everything the match page needs (score header, scorecard, toss, Playing XI).
 export async function fetchMatchDetail(id: string) {
   const f = await sm<SmFixture>(`fixtures/${id}`, { include: SCORECARD });
-  return { match: toMatch(f), scorecard: toScorecard(f), info: toInfo(f) };
+  return { match: toMatch(f), scorecard: toScorecard(f), info: toInfo(f), commentary: toCommentary(f) };
 }
 
 export async function fetchSeries(id: string) {

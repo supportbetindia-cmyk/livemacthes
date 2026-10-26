@@ -7,6 +7,7 @@ import { PlayingXI } from "@/components/PlayingXI";
 import { SummaryTab } from "@/components/match/SummaryTab";
 import { SeriesStatsTab } from "@/components/match/SeriesStatsTab";
 import { NewsTab } from "@/components/match/NewsTab";
+import { CommentaryTab } from "@/components/match/CommentaryTab";
 import { HeadToHead, TeamForm } from "@/components/match/FormAndH2H";
 import { runs } from "@/components/MatchCard";
 import { AutoRefresh } from "@/components/AutoRefresh";
@@ -34,18 +35,19 @@ export async function generateMetadata({ params }: PageProps<"/[lang]/match/[id]
 }
 
 // Tabs are links (?tab=summary): each one is a server render, and the match data is cached, so switching costs no API request.
-const TABS = ["info", "summary", "scorecard", "stats", "news"] as const;
+const TABS = ["info", "summary", "scorecard", "commentary", "stats", "news"] as const;
 
 async function MatchView({ params, searchParams }: Pick<PageProps<"/[lang]/match/[id]">, "params" | "searchParams">) {
   const { id } = await params;
-  const { tab: rawTab } = await searchParams;
+  const { tab: rawTab, view: rawView } = await searchParams;
   const tab = TABS.find((t) => t === rawTab) ?? "info";
-  const [dict, lang, { match, scorecard, info }] = await Promise.all([getDictionary(), getLocale(), getMatchDetail(id)]);
+  const view = rawView === "over" ? "over" : "live";
+  const [dict, lang, { match, scorecard, info, commentary }] = await Promise.all([getDictionary(), getLocale(), getMatchDetail(id)]);
   const live = match.matchStarted && !match.matchEnded;
   // "India vs Australia, 2nd ODI" -> "2nd ODI"
   const detail = match.name.split(", ").slice(1).join(", ") || match.matchType.toUpperCase();
   const short = match.teams.map((t) => match.teamInfo?.find((i) => i.name === t)?.shortname || t);
-  const tabLabel = { info: dict.match.info, summary: dict.match.summary, scorecard: dict.match.scorecard, stats: dict.match.seriesStats, news: dict.match.news };
+  const tabLabel = { info: dict.match.info, summary: dict.match.summary, scorecard: dict.match.scorecard, commentary: dict.match.commentary, stats: dict.match.seriesStats, news: dict.match.news };
 
   return (
     <>
@@ -134,6 +136,8 @@ async function MatchView({ params, searchParams }: Pick<PageProps<"/[lang]/match
         </div>
       ) : tab === "summary" ? (
         <SummaryTab match={match} scorecard={scorecard} info={info} dict={dict.match} lang={lang} />
+      ) : tab === "commentary" ? (
+        <CommentaryTab commentary={commentary} view={view} lang={lang} id={id} dict={dict.match} />
       ) : tab === "stats" ? (
         <Suspense fallback={<Skeleton />}>
           <SeriesStatsTab seriesId={match.series_id} seriesName={match.seriesName} dict={dict.match} lang={lang} />

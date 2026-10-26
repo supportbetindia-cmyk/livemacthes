@@ -69,7 +69,13 @@
     "rrr": "RRR",
     "fow": "विकेट पतन",
     "partnerships": "साझेदारियाँ",
-    "ballsShort": "गें"
+    "ballsShort": "गें",
+    "commentary": "कॉमेंट्री",
+    "commentaryLive": "लाइव",
+    "commentaryOver": "ओवर दर ओवर",
+    "commentaryTo": "को",
+    "noCommentary": "खेल शुरू होते ही गेंद-दर-गेंद कॉमेंट्री दिखेगी।",
+    "wktShort": "वि"
   },
   "fixtures": {
     "title": "मैच कार्यक्रम",
