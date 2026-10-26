@@ -30,10 +30,10 @@ export function MatchCarousel({ matches: initial, top, lang, labels }: { matches
   const arrow = "absolute top-1/2 z-10 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-[0_4px_14px_rgb(0_0_0/0.12)] transition hover:scale-105 md:flex";
 
   return (
-    <section className="mb-10">
-      <div className="mb-4 flex items-center gap-3">
-        {/* Pill tabs, like cricinfo's "Matches (3)" chips */}
-        <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto py-1 [scrollbar-width:none]">
+    <section className="mb-8">
+      <div className="mb-3 flex items-center gap-3">
+        {/* Compact underlined tabs above the match strip. */}
+        <div className="flex min-w-0 flex-1 gap-4 overflow-x-auto [scrollbar-width:none]">
           {tabs.map((t) => (
             <button
               key={t.key}
@@ -43,7 +43,7 @@ export function MatchCarousel({ matches: initial, top, lang, labels }: { matches
                 row.current?.scrollTo({ left: 0 });
               }}
               aria-pressed={tab === t.key}
-              className="chip"
+              className="whitespace-nowrap border-b-2 border-transparent px-1 py-2 text-[13px] font-medium text-muted transition-colors hover:text-foreground aria-pressed:border-brand aria-pressed:text-foreground"
             >
               {t.label}
             </button>
@@ -58,8 +58,8 @@ export function MatchCarousel({ matches: initial, top, lang, labels }: { matches
         <button type="button" aria-label="Previous" onClick={() => scroll(-1)} className={`${arrow} -left-4`}><Icon name="chevronRight" className="h-4 w-4 rotate-180" /></button>
         <div ref={row} className="flex snap-x gap-3 overflow-x-auto scroll-smooth px-0.5 pb-3 pt-0.5 [scrollbar-width:none]">
           {list.map((m) => (
-            <div key={m.id} className="flex w-[82%] shrink-0 snap-start sm:w-[19.5rem]">
-              <MatchCard match={m} lang={lang} t={labels.card} />
+            <div key={m.id} className="flex w-[88%] shrink-0 snap-start sm:w-[20.5rem]">
+              <MatchCard match={m} lang={lang} t={labels.card} compact />
             </div>
           ))}
         </div>

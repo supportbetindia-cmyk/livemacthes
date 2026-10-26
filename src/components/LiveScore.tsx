@@ -19,7 +19,7 @@ export function LiveScore({ match: initial, upcomingLabel, lastOver, labels, lan
     const scores = match.score?.filter((s) => s.inning.startsWith(name + " ")) ?? [];
     return (
       <div className={`flex min-w-0 items-center gap-3 md:gap-4 ${i ? "flex-row-reverse text-right" : ""}`}>
-        <Logo src={info?.img} size={48} className="h-10! w-10! md:h-12! md:w-12!" />
+        <Logo src={info?.img} size={48} fit="cover" className="bg-raised h-10! w-10! md:h-12! md:w-12!" />
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold text-white/70 md:text-lg" title={name}>{info?.shortname || name}</div>
           {scores.length > 0 && (

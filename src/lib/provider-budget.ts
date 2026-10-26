@@ -17,18 +17,25 @@ function positiveInteger(value: string | undefined, fallback: number) {
 // Firebase transaction per BATCH API calls instead of one per call. Unused reservations stay counted
 // (conservative: the shared cap can only be under-used, never exceeded).
 const leases: Record<RequestSource, number> = { web: 0, worker: 0 };
+const leaseExpires: Record<RequestSource, number> = { web: 0, worker: 0 };
 // At most one reservation transaction in flight per source: parallel API calls queue behind it instead of
 // running competing transactions on the same counter (which made them retry until they timed out).
 const inflight: Partial<Record<RequestSource, Promise<void>>> = {};
 
 export async function reserveProviderRequest(source: RequestSource) {
-  while (leases[source] === 0) {
+  for (;;) {
+    // Spend reservations only in their original hour. The shared counter then
+    // retains every actual call for at least 24 hours, even after a long idle.
+    if (Date.now() >= leaseExpires[source]) leases[source] = 0;
+    if (leases[source] > 0) {
+      leases[source]--;
+      return;
+    }
     inflight[source] ??= reserveBatch(source).finally(() => {
       inflight[source] = undefined;
     });
     await inflight[source]; // a failure rejects every waiter: no request ever bypasses the budget
   }
-  leases[source]--;
 }
 
 async function reserveBatch(source: RequestSource) {
@@ -46,6 +53,7 @@ async function reserveBatch(source: RequestSource) {
   const nowHour = Math.floor(Date.now() / 3600000);
   // Set by the last (committed) run of `update`; Firebase may call it several times before committing.
   let granted = 0;
+  let grantedHour = nowHour;
   const update = (current: unknown): Budget | undefined => {
     let state: Budget = { hour: nowHour, slots: {} };
     if (current !== null) {
@@ -59,6 +67,7 @@ async function reserveBatch(source: RequestSource) {
     // 25 hours is conservative: no rolling 24-hour interval can exceed the cap.
     // A clock moving backwards must not discard already-counted requests.
     const hour = Math.max(nowHour, state.hour);
+    grantedHour = hour;
     const slots: Record<string, Slot> = {};
     let total = 0;
     let web = 0;
@@ -93,6 +102,7 @@ async function reserveBatch(source: RequestSource) {
     ]);
     if (!result.committed || granted <= 0) throw new Error("Sportmonks request budget exhausted");
     leases[source] += granted;
+    leaseExpires[source] = (grantedHour + 1) * 3600000;
   } catch (cause) {
     // Never bypass the budget on database errors, malformed state or timeouts.
     // A late transaction may consume a reservation, but must never start a fetch.

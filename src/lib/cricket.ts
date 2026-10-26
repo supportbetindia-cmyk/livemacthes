@@ -1,8 +1,4 @@
-// Cached data access for pages. Provider calls + types live in provider.ts.
-//
-// Every exported getter first awaits `connection()`: cricket data is fetched when a visitor asks for a page,
-// never while `next build` prerenders. So builds make no Sportmonks calls (no budget used, no deploy failing
-// because the API or budget is unavailable), and the "use cache" results below are still shared by all visitors.
+
 import { cacheLife } from "next/cache";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
@@ -13,22 +9,15 @@ import { hourlyLimit } from "./hourly-limit";
 export type * from "./provider";
 export { derived } from "./provider";
 
-// IDs come straight from the URL (/match/<id>, /series/<id>, /teams/<id>). Only plain numbers may reach the
-// provider: anything else ("../leagues", "abc") would build a different Sportmonks URL with our token,
-// and every junk value would cost an uncached API call. 404 instead.
+
 function validId(id: string) {
   if (!/^\d{1,10}$/.test(id)) notFound();
   return String(Number(id));
 }
 
-// How often each kind of data is fetched again, at most (while visitors keep coming), chosen to fit the
-// daily request budget: refresh rate, not visitor count, sets the API usage.
-// Note: the preset "minutes" profile refreshes every 1 minute, too often for this plan.
-const live = { stale: 120, revalidate: 120, expire: 300 }; // live scores: every 2 min
-const tenMinutes = { stale: 300, revalidate: 600, expire: 3600 }; // match list, upcoming match
-const halfHour = { stale: 300, revalidate: 1800, expire: 7200 }; // series, points table, team page
-
-// ---------- Cached fetches (shared across visitors) ----------
+const live = { stale: 120, revalidate: 120, expire: 300 }; 
+const tenMinutes = { stale: 300, revalidate: 600, expire: 3600 }; 
+const halfHour = { stale: 300, revalidate: 1800, expire: 7200 };
 
 async function cachedCurrentMatches() {
   "use cache";
@@ -50,7 +39,7 @@ async function cachedMatchDetail(id: string) {
   const listed = (await Promise.all([cachedMatches(), cachedCurrentMatches()].map((l) => l.catch(() => [])))).flat();
   if (!listed.some((m) => m.id === id)) checkUnlisted();
   const detail = await orNull(p.fetchMatchDetail(id));
-  // A finished match never changes; a live one does every ball; an upcoming one gets its toss and XI before the start.
+
   if (!detail || detail.match.matchEnded) cacheLife("days");
   else if (detail.match.matchStarted) cacheLife(live);
   else cacheLife(tenMinutes);
@@ -59,7 +48,7 @@ async function cachedMatchDetail(id: string) {
 
 async function cachedMatches() {
   "use cache";
-  cacheLife(tenMinutes); // live scores on top come from cachedCurrentMatches (2 min)
+  cacheLife(tenMinutes); 
   return p.fetchMatches();
 }
 

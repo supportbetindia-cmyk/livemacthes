@@ -27,7 +27,6 @@ let last = new Map<string, string>(Object.keys((await live?.get())?.val() ?? {})
 
 async function tick() {
   const matches = await fetchLive("worker");
-
   const next = new Map(
     matches
       .filter((m) => m.matchStarted)
