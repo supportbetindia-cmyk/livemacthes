@@ -32,7 +32,7 @@ globalThis.fetch = (async (input: string | URL | Request) => {
   const page = Number(url.searchParams.get("page") ?? 1);
   requested.push(page);
   const body = { data: (pages[page - 1] ?? []).map(fixture), ...(lastPage && { meta: { last_page: lastPage } }) };
-  return { ok: true, status: 200, json: async () => body } as Response;
+  return { ok: true, status: 200, text: async () => JSON.stringify(body) } as Response;
 }) as typeof fetch;
 
 const ids = async () => (await fetchSeries("7")).matchList.map((m) => Number(m.id)).sort((a, b) => a - b);
@@ -56,12 +56,18 @@ test("a match that moved between pages is kept once", async () => {
 });
 
 test("a missing id is NotFound (cacheable); other errors are not", async (t) => {
-  const reply = (status: number) => { budget = null; t.mock.method(globalThis, "fetch", async () => ({ ok: false, status, json: async () => ({ status: "error", message: "x" }) })); };
+  const reply = (status: number, body = '{"status":"error","message":"x"}') => { budget = null; t.mock.method(globalThis, "fetch", async () => ({ ok: status < 400, status, text: async () => body })); };
   reply(404);
   await assert.rejects(fetchMatchDetail("9999999"), NotFound);
   t.mock.restoreAll();
   reply(500);
   await assert.rejects(fetchMatchDetail("1"), (e) => !(e instanceof NotFound));
+});
+
+test("an empty response body is a clean error, not an uncaught SyntaxError", async (t) => {
+  budget = null;
+  t.mock.method(globalThis, "fetch", async () => ({ ok: true, status: 200, text: async () => "" }));
+  await assert.rejects(fetchMatchDetail("1"), (e) => e instanceof Error && !(e instanceof NotFound) && /empty or non-JSON/.test(e.message));
 });
 
 test(`stops at ${MAX_PAGES} pages to protect the request budget`, async () => {

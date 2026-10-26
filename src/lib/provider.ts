@@ -73,8 +73,17 @@ async function smResponse(path: string, params: Record<string, string>, source: 
   if (!token) throw new Error("SPORTMONKS_API_TOKEN is not set (see .env.example)");
   await reserveProviderRequest(source);
   const res = await fetch(`${BASE}/${path}?${new URLSearchParams({ api_token: token, ...params })}`, { signal: AbortSignal.timeout(10000) });
-  const json = await res.json();
   if (res.status === 404) throw new NotFound(`Sportmonks ${path}: not found`);
+  // Read as text and parse ourselves: an empty or non-JSON body (a brief outage, a gateway error, a dropped
+  // connection) would make res.json() throw an unhandled SyntaxError and 500 the page. Turn it into a normal
+  // error instead, so callers fall back to the "try again" state like any other request failure.
+  const body = await res.text();
+  let json: SmResponse & { status?: string; message?: unknown };
+  try {
+    json = JSON.parse(body);
+  } catch {
+    throw new Error(`Sportmonks ${path}: ${res.ok ? "empty or non-JSON response" : `HTTP ${res.status}`}`);
+  }
   if (!res.ok || json.status === "error") throw new Error(`Sportmonks ${path}: ${JSON.stringify(json.message ?? res.status)}`);
   return json;
 }

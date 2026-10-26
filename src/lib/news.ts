@@ -92,7 +92,14 @@ async function sanity<T>(query: string, params: Record<string, string>): Promise
   // answer for a moment. Our own cache keeps this to a few requests an hour. Without a token only published articles are visible.
   const res = await fetch(`https://${projectId}.api.sanity.io/v2025-01-01/data/query/${dataset}?${qs}`, { signal: AbortSignal.timeout(5000) });
   if (!res.ok) throw new Error(`Sanity: HTTP ${res.status}`); // thrown, not null: an outage must not be cached as "no article"
-  return (await res.json()).result as T;
+  // Parse ourselves: an empty/non-JSON body would make res.json() throw an unhandled SyntaxError. Thrown (not null)
+  // so a blip isn't cached as "no articles"; getNews catches it and still shows the RSS feed.
+  const body = await res.text();
+  try {
+    return (JSON.parse(body) as { result: T }).result;
+  } catch {
+    throw new Error("Sanity: empty or non-JSON response");
+  }
 }
 
 // Fields are per-language objects ({ en, hi, ... }); fall back to English when a translation is missing.
