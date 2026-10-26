@@ -1,5 +1,7 @@
 "use client";
 
+import { headlineScores } from "@/lib/score-display";
+
 import type { Match, MatchInfo } from "@/lib/provider";
 import { LivePanel, type LiveLabels } from "./match/LivePanel";
 import { runs } from "./MatchCard";
@@ -16,7 +18,7 @@ export function LiveScore({ match: initial, upcomingLabel, lastOver, labels, lan
   const side = (i: number) => {
     const name = match.teams[i];
     const info = match.teamInfo?.find((t) => t.name === name);
-    const scores = match.score?.filter((s) => s.inning.startsWith(name + " ")) ?? [];
+    const scores = headlineScores(match, name);
     return (
       <div className={`flex min-w-0 items-center gap-3 md:gap-4 ${i ? "flex-row-reverse text-right" : ""}`}>
         <Logo src={info?.img} size={48} fit="cover" className="bg-raised h-10! w-10! md:h-12! md:w-12!" />

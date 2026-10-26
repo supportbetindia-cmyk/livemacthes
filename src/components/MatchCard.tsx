@@ -1,3 +1,4 @@
+import { headlineScores } from "@/lib/score-display";
 import Link from "next/link";
 import type { Match, Score } from "@/lib/cricket";
 import type { Dict } from "@/app/[lang]/dictionaries";
@@ -35,7 +36,7 @@ export function MatchCard({ match, lang, t, compact = false }: { match: Match; l
           <div className="flex min-w-0 flex-1 flex-col gap-3">
             {match.teams.map((name) => {
               const info = match.teamInfo?.find((x) => x.name === name);
-              const scores = match.score?.filter((s) => s.inning.startsWith(name + " ")) ?? [];
+              const scores = headlineScores(match, name);
               const latest = latestInning?.startsWith(name + " ");
               return (
                 <div key={name} className="flex min-w-0 items-center gap-2">
