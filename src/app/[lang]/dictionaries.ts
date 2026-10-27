@@ -19,8 +19,12 @@ export async function getLocale(): Promise<Locale> {
   return l;
 }
 
+// SITE_NAME (optional) overrides the brand name, so one codebase can run as several differently-named sites
+// (same backend) just by changing env vars — no code edit. Resolved server-side, so it reaches client components too.
 export async function getDictionary(): Promise<Dict> {
-  return dictionaries[await getLocale()]();
+  const dict = await dictionaries[await getLocale()]();
+  const name = process.env.SITE_NAME?.trim();
+  return name ? { ...dict, nav: { ...dict.nav, brand: name }, news: { ...dict.news, ours: name } } : dict;
 }
 
 // Canonical + hreflang links for a page ("" = home, "/news"): tells Google which URL is the page and pairs its

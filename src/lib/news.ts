@@ -121,7 +121,7 @@ async function getOurArticles(lang: string): Promise<NewsItem[]> {
     date: r.publishedAt,
     excerpt: r.excerpt,
     image: r.image,
-    source: "LiveScore",
+    source: process.env.SITE_NAME?.trim() || "LiveScore",
     author: r.author,
     ours: true,
   }));

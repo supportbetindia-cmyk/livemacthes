@@ -7,6 +7,10 @@ import { MoreMenu } from "./MoreMenu";
 import { Icon } from "./Icon";
 import { BottomNavTabs, BottomTabs, type Tab } from "./BottomNav";
 
+const logo = process.env.LOGO_URL || "/live-matches-cricket-logo.png";
+const logoDark = process.env.LOGO_DARK_URL || "/live-matches-cricket-logo-dark.png";
+const external = (src: string) => /^https?:\/\//.test(src); // an off-site logo URL skips next/image optimization
+
 export async function Navbar() {
   const [dict, lang] = await Promise.all([getDictionary(), getLocale()]);
   const t = dict.nav;
@@ -53,22 +57,25 @@ export async function Navbar() {
     <header className="sticky top-0 z-20 border-b border-border bg-card text-foreground shadow-card">
       <nav className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4">
         <Link href={`/${lang}`} className="shrink-0 rounded-md px-1">
+          {/* LOGO_URL / LOGO_DARK_URL (optional) override the logo per site; default to the bundled one. */}
           <Image
-            src="/live-matches-cricket-logo.png"
-            alt="Live Matches"
+            src={logo}
+            alt={t.brand}
             width={2172}
             height={724}
             sizes="(min-width: 1280px) 192px, (min-width: 640px) 144px, 112px"
             loading="eager"
+            unoptimized={external(logo)}
             className="h-auto w-28 dark:hidden sm:w-36 xl:w-48"
           />
           <Image
-            src="/live-matches-cricket-logo-dark.png"
-            alt="Live Matches"
+            src={logoDark}
+            alt={t.brand}
             width={2171}
             height={724}
             sizes="(min-width: 1280px) 192px, (min-width: 640px) 144px, 112px"
             loading="eager"
+            unoptimized={external(logoDark)}
             className="hidden h-auto w-28 dark:block sm:w-36 xl:w-48"
           />
         </Link>

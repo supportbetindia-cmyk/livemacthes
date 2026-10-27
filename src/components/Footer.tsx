@@ -20,6 +20,8 @@ const FEATURED_TEAMS = [
   "Chennai Super Kings", "Royal Challengers Bengaluru",
 ];
 
+const logoDark = process.env.LOGO_DARK_URL || "/live-matches-cricket-logo-dark.png"; // per-site override, same as Navbar
+
 type FooterLink = { label: string; href: string; external?: boolean };
 
 // All footer data is best-effort: if the API or a feed fails, that column is just empty.
@@ -98,11 +100,12 @@ export async function Footer() {
           <div className="flex flex-wrap items-center gap-5">
             <Link href={href("")} className="shrink-0 rounded-lg px-3 py-1">
               <Image
-                src="/live-matches-cricket-logo-dark.png"
-                alt="Live Matches"
+                src={logoDark}
+                alt={dict.nav.brand}
                 width={2171}
                 height={724}
                 sizes="192px"
+                unoptimized={/^https?:\/\//.test(logoDark)}
                 className="h-auto w-48"
               />
             </Link>
@@ -121,7 +124,7 @@ export async function Footer() {
           </div>
         </div>
         <div className="flex flex-col gap-2 pb-8 text-[13px] text-white/55 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {year} LiveScore. {t.rights}</p>
+          <p>© {year} {dict.nav.brand}. {t.rights}</p>
           <p>{t.data}</p>
         </div>
       </div>
