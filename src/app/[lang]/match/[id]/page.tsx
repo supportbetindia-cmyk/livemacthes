@@ -8,14 +8,13 @@ import { SummaryTab } from "@/components/match/SummaryTab";
 import { SeriesStatsTab } from "@/components/match/SeriesStatsTab";
 import { NewsTab } from "@/components/match/NewsTab";
 import { CommentaryTab } from "@/components/match/CommentaryTab";
+import { ScorecardTab } from "@/components/match/ScorecardTab";
 import { HeadToHead, TeamForm } from "@/components/match/FormAndH2H";
-import { runs } from "@/components/MatchCard";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { Icon } from "@/components/Icon";
 import { Logo } from "@/components/Logo";
-import { Empty, Skeleton } from "@/components/ui";
-import { alternates, getDictionary, getLocale, type Dict } from "../../dictionaries";
-import type { Scorecard } from "@/lib/provider";
+import { Skeleton } from "@/components/ui";
+import { alternates, getDictionary, getLocale } from "../../dictionaries";
 import { JsonLd } from "@/components/JsonLd";
 import { PlayerLink } from "@/components/PlayerLink";
 
@@ -39,7 +38,7 @@ const TABS = ["info", "summary", "scorecard", "commentary", "stats", "news"] as 
 
 async function MatchView({ params, searchParams }: Pick<PageProps<"/[lang]/match/[id]">, "params" | "searchParams">) {
   const { id } = await params;
-  const { tab: rawTab, view: rawView } = await searchParams;
+  const { tab: rawTab, view: rawView, inn: rawInn } = await searchParams;
   const tab = TABS.find((t) => t === rawTab) ?? "info";
   const view = rawView === "over" ? "over" : "live";
   const [dict, lang, { match, scorecard, info, commentary }] = await Promise.all([getDictionary(), getLocale(), getMatchDetail(id)]);
@@ -146,98 +145,8 @@ async function MatchView({ params, searchParams }: Pick<PageProps<"/[lang]/match
         <Suspense fallback={<Skeleton />}>
           <NewsTab teams={match.teams} dict={dict.match} lang={lang} />
         </Suspense>
-      ) : scorecard.length === 0 ? (
-        <Empty>{dict.match.noScorecard}</Empty>
       ) : (
-        <div className="flex flex-col gap-6">
-          {scorecard.map((inn) => {
-            const total = match.score?.find((s) => s.inning === inn.inning);
-            return (
-              <div key={inn.inning} className="surface overflow-hidden">
-                <div className="flex items-baseline justify-between gap-3 px-4 py-3.5">
-                  <h3 className="font-semibold">{inn.inning}</h3>
-                  {total && (
-                    <span className="tabular-nums">
-                      <span className="mr-2 text-xs text-muted">({total.o} ov)</span>
-                      <span className="text-lg font-bold">{runs(total)}</span>
-                    </span>
-                  )}
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="data-table">
-                    <thead>
-                      <tr><th>{dict.match.batter}</th><th>R</th><th>B</th><th>4s</th><th>6s</th><th>SR</th></tr>
-                    </thead>
-                    <tbody>
-                      {inn.batting.map((b) => (
-                        <tr key={b.batsman.name}>
-                          <td>
-                            <PlayerLink id={b.batsman.id} lang={lang} className="block font-medium text-link">{b.batsman.name}</PlayerLink>
-                            <div className="text-xs text-muted">{b["dismissal-text"]}</div>
-                          </td>
-                          <td className="font-bold">{b.r}</td><td>{b.b}</td><td>{b["4s"]}</td><td>{b["6s"]}</td><td className="text-muted">{b.sr}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <table className="data-table">
-                    <thead>
-                      <tr><th>{dict.match.bowler}</th><th>O</th><th>M</th><th>R</th><th>W</th><th>Econ</th></tr>
-                    </thead>
-                    <tbody>
-                      {inn.bowling.map((b) => (
-                        <tr key={b.bowler.name}>
-                          <td><PlayerLink id={b.bowler.id} lang={lang} className="font-medium text-link">{b.bowler.name}</PlayerLink></td>
-                          <td>{b.o}</td><td>{b.m}</td><td>{b.r}</td><td className="font-bold">{b.w}</td><td className="text-muted">{b.eco}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <Wickets inn={inn} dict={dict.match} />
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </>
-  );
-}
-
-// Under each innings: fall of wickets ("52-1 (Makhanya, 5.4)") and partnerships with a bar for their size.
-function Wickets({ inn, dict }: { inn: Scorecard[number]; dict: Dict["match"] }) {
-  const { fow = [], partnerships = [] } = inn;
-  const best = Math.max(1, ...partnerships.map((p) => p.runs));
-  const label = "mb-2 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted";
-  return (
-    <>
-      {fow.length > 0 && (
-        <div className="border-t border-border px-4 py-3 text-sm">
-          <p className={label}>{dict.fow}</p>
-          <p className="flex flex-wrap gap-x-4 gap-y-1 text-muted">
-            {fow.map((w) => (
-              <span key={w.wicket}><b className="tabular-nums text-foreground">{w.score}-{w.wicket}</b> ({w.name}, {w.over})</span>
-            ))}
-          </p>
-        </div>
-      )}
-      {partnerships.length > 0 && (
-        <div className="border-t border-border px-4 py-3 text-sm">
-          <p className={label}>{dict.partnerships}</p>
-          <ul className="flex flex-col gap-2.5">
-            {partnerships.map((p, i) => (
-              <li key={i}>
-                <div className="flex justify-between gap-3">
-                  <span className="truncate">{p.names.join(" & ")}</span>
-                  <span className="shrink-0 tabular-nums"><b>{p.runs}</b> <span className="text-muted">({p.balls}{dict.ballsShort})</span></span>
-                </div>
-                <div className="mt-1 h-1 overflow-hidden rounded-full bg-raised" role="presentation">
-                  <div className="h-full rounded-full bg-accent/70" style={{ width: `${(p.runs / best) * 100}%` }} />
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
+        <ScorecardTab scorecard={scorecard} match={match} selected={Number(rawInn ?? scorecard.length - 1)} lang={lang} id={id} dict={dict.match} />
       )}
     </>
   );

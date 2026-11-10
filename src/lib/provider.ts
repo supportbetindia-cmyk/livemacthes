@@ -40,8 +40,11 @@ export type Scorecard = {
   batting: { batsman: { name: string; id?: string }; "dismissal-text"?: string; r: number; b: number; "4s": number; "6s": number; sr: number }[];
   bowling: { bowler: { name: string; id?: string }; o: number; m: number; r: number; w: number; eco: number }[];
   fow?: { wicket: number; score: number; over: number; name: string }[];
-  partnerships?: { runs: number; balls: number; names: [string, string] }[]; // last one may be unbroken
+  partnerships?: Partnership[]; // last one may be unbroken
 }[];
+// A stand between two batters. `batsmen` is each one's own runs/balls in the stand (for the split bar); the
+// partnership `runs` also includes extras, so the two batsmen's runs can sum to slightly less than `runs`.
+export type Partnership = { runs: number; balls: number; batsmen: { name: string; runs: number; balls: number }[] };
 export type LineupPlayer = { id: string; name: string; img?: string; role?: string; captain: boolean; keeper: boolean };
 export type MatchInfo = {
   toss?: { team: string; elected: string }; // elected: "batting" | "bowling"
@@ -141,7 +144,9 @@ type SmFixture = {
   }[];
   bowling?: { team_id: number; scoreboard: string; sort: number; active: boolean; overs: number; medians: number; runs: number; wickets: number; rate: number; bowler?: SmPlayer }[];
   // Every ball of the match ("14.3" = over 15, ball 3). Wides repeat the ball number; `legal` is false for them.
+  // The two creeze ids are the pair at the wicket; they only change when a batter is out (not on strike rotation).
   balls?: { id: number; ball: number; scoreboard: string; batsman_id?: number; bowler_id?: number;
+    batsman_one_on_creeze_id?: number; batsman_two_on_creeze_id?: number;
     score: { runs: number; bye: number; leg_bye: number; noball: number; is_wicket: boolean; ball: boolean } }[];
   rpc_overs?: number | string | null; // rain rules: revised overs / target
   rpc_target?: number | string | null;
@@ -256,16 +261,54 @@ export function wicketsAndPartnerships(rows: SmBatting[], total?: { score: numbe
   for (const b of out) {
     const at = { score: b.fow_score ?? 0, balls: oversToBalls(b.fow_balls ?? 0) };
     fow.push({ wicket: fow.length + 1, score: at.score, over: b.fow_balls ?? 0, name: name(b) });
-    partnerships.push({ runs: at.score - prev.score, balls: at.balls - prev.balls, names: [name(crease[0] ?? b), name(crease[1] ?? b)] });
+    partnerships.push({ runs: at.score - prev.score, balls: at.balls - prev.balls, batsmen: pair(name(crease[0] ?? b), name(crease[1] ?? b)) });
     const i = crease.indexOf(b);
     crease.splice(i < 0 ? 0 : i, 1); // i < 0 only on odd data: drop the longest-staying batter
     if (order[next]) crease.push(order[next++]);
     prev = at;
   }
   if (total && crease.length === 2 && total.score > prev.score) {
-    partnerships.push({ runs: total.score - prev.score, balls: oversToBalls(total.overs) - prev.balls, names: [name(crease[0]), name(crease[1])] });
+    partnerships.push({ runs: total.score - prev.score, balls: oversToBalls(total.overs) - prev.balls, batsmen: pair(name(crease[0]), name(crease[1])) });
   }
   return { fow, partnerships };
+}
+
+// Fallback partnership batsmen when there's no ball data to split by (names only, no per-batter runs).
+const pair = (a: string, b: string): Partnership["batsmen"] => [{ name: a, runs: 0, balls: 0 }, { name: b, runs: 0, balls: 0 }];
+
+// Partnerships with each batter's own runs/balls, from the ball data: group consecutive balls by the pair at the
+// crease (so strike rotation doesn't split a stand), tally the striker's runs. Batters ordered by batting position.
+export function partnershipsFromBalls(balls: NonNullable<SmFixture["balls"]>, batting: SmBatting[]): Partnership[] | null {
+  if (!balls.length || !balls.every((b) => b.batsman_one_on_creeze_id && b.batsman_two_on_creeze_id)) return null;
+  const nameOf = new Map<number, string>();
+  const orderOf = new Map<number, number>();
+  for (const b of batting) if (b.batsman?.id) { nameOf.set(b.batsman.id, b.batsman.fullname); orderOf.set(b.batsman.id, b.sort); }
+  const out: Partnership[] = [];
+  let cur: { key: string; ids: number[]; tally: Map<number, { runs: number; balls: number }>; runs: number; balls: number } | null = null;
+  const close = () => {
+    if (!cur) return;
+    const bat = cur.ids
+      .map((id) => ({ name: nameOf.get(id) ?? "", runs: cur!.tally.get(id)?.runs ?? 0, balls: cur!.tally.get(id)?.balls ?? 0, order: orderOf.get(id) ?? 99 }))
+      .sort((x, y) => x.order - y.order)
+      .map(({ name, runs, balls }) => ({ name, runs, balls }));
+    out.push({ runs: cur.runs, balls: cur.balls, batsmen: bat });
+  };
+  for (const b of balls) {
+    const ids = [b.batsman_one_on_creeze_id!, b.batsman_two_on_creeze_id!];
+    const key = [...ids].sort((x, y) => x - y).join("-");
+    if (!cur || cur.key !== key) { close(); cur = { key, ids, tally: new Map(), runs: 0, balls: 0 }; }
+    const legal = b.score.ball;
+    cur.runs += b.score.runs + (b.score.bye || 0) + (b.score.leg_bye || 0);
+    if (legal) cur.balls++;
+    if (b.batsman_id) {
+      const t = cur.tally.get(b.batsman_id) ?? { runs: 0, balls: 0 };
+      t.runs += b.score.runs;
+      if (legal) t.balls++;
+      cur.tally.set(b.batsman_id, t);
+    }
+  }
+  close();
+  return out;
 }
 
 // "1", "4", "W", "wd", "3wd", "nb", "nb+4", "1lb", "2b"
@@ -312,9 +355,14 @@ function toScorecard(f: SmFixture): Scorecard {
   // Scoreboards S1, S2, ... are innings in batting order; label them like the match score.
   const inns = innings(f);
   const boards = [...new Set((f.batting ?? []).map((b) => b.scoreboard))].sort();
-  return boards.map((board, i) => ({
+  return boards.map((board, i) => {
+    const batRows = (f.batting ?? []).filter((b) => b.scoreboard === board);
+    const { fow, partnerships } = wicketsAndPartnerships(batRows, inns[i] && { score: inns[i].run.score, overs: inns[i].run.overs });
+    const ballRows = (f.balls ?? []).filter((b) => b.scoreboard === board);
+    return {
     inning: inns[i]?.label ?? board,
-    ...wicketsAndPartnerships((f.batting ?? []).filter((b) => b.scoreboard === board), inns[i] && { score: inns[i].run.score, overs: inns[i].run.overs }),
+    fow,
+    partnerships: partnershipsFromBalls(ballRows, batRows) ?? partnerships, // ball data gives each batter's share; else names only
     batting: (f.batting ?? [])
       .filter((b) => b.scoreboard === board)
       .sort((a, b) => a.sort - b.sort)
@@ -323,7 +371,8 @@ function toScorecard(f: SmFixture): Scorecard {
       .filter((b) => b.scoreboard === board)
       .sort((a, b) => a.sort - b.sort)
       .map((b) => ({ bowler: { name: b.bowler?.fullname ?? "", id: pid(b.bowler) }, o: b.overs, m: b.medians, r: b.runs, w: b.wickets, eco: b.rate })),
-  }));
+    };
+  });
 }
 
 function toInfo(f: SmFixture): MatchInfo {

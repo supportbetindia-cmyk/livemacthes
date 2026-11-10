@@ -2,7 +2,7 @@
 // Data: Warriors' chase vs Dolphins (CSA T20, Sportmonks fixture 71475): 117/4 in 15 overs.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ballLabel, toCommentary, wicketsAndPartnerships } from "./provider.ts";
+import { ballLabel, partnershipsFromBalls, toCommentary, wicketsAndPartnerships } from "./provider.ts";
 
 const bat = (sort: number, fullname: string, fow_score = 0, fow_balls = 0) =>
   ({ sort, batsman: { fullname }, fow_score, fow_balls }) as Parameters<typeof wicketsAndPartnerships>[0][number];
@@ -25,7 +25,7 @@ test("fall of wickets in the order they fell", () => {
 
 test("partnerships: pairs, runs and balls add up to the total, last one unbroken", () => {
   const { partnerships } = wicketsAndPartnerships(rows, { score: 117, overs: 15 });
-  assert.deepEqual(partnerships, [
+  assert.deepEqual(partnerships.map((p) => ({ runs: p.runs, balls: p.balls, names: p.batsmen.map((x) => x.name) })), [
     { runs: 52, balls: 34, names: ["Hermann", "Makhanya"] },
     { runs: 13, balls: 11, names: ["Hermann", "De Villiers"] },
     { runs: 4, balls: 8, names: ["De Villiers", "Stubbs"] },
@@ -33,6 +33,31 @@ test("partnerships: pairs, runs and balls add up to the total, last one unbroken
     { runs: 24, balls: 20, names: ["King", "Kruger"] },
   ]);
   assert.equal(partnerships.reduce((s, p) => s + p.runs, 0), 117);
+});
+
+test("partnershipsFromBalls splits each batter's own runs/balls, grouped by the pair at the crease", () => {
+  // Opening stand A(100)+B(101), then A out, C(102) in. Strike rotates but the pair key doesn't.
+  const ball = (id: number, striker: number, one: number, two: number, score: object) =>
+    ({ id, ball: id * 0.1, scoreboard: "S1", batsman_id: striker, batsman_one_on_creeze_id: one, batsman_two_on_creeze_id: two,
+       score: { runs: 0, bye: 0, leg_bye: 0, noball: 0, is_wicket: false, ball: true, ...score } });
+  const balls = [
+    ball(1, 100, 100, 101, { runs: 4 }), // A: 4 (1)
+    ball(2, 101, 100, 101, { runs: 1 }), // B: 1 (1)  -> strike to B, pair unchanged
+    ball(3, 101, 101, 100, { leg_bye: 1 }), // leg bye: +1 to stand, B faces a ball, 0 to batter
+    ball(4, 102, 102, 101, { runs: 2 }), // new pair (A out, C in): C 2 (1)
+  ] as Parameters<typeof partnershipsFromBalls>[0];
+  const batting = [{ sort: 1, batsman: { id: 100, fullname: "A" } }, { sort: 2, batsman: { id: 101, fullname: "B" } }, { sort: 3, batsman: { id: 102, fullname: "C" } }] as Parameters<typeof partnershipsFromBalls>[1];
+
+  const p = partnershipsFromBalls(balls, batting);
+  assert.ok(p);
+  assert.equal(p.length, 2);
+  assert.deepEqual(p[0], { runs: 6, balls: 3, batsmen: [{ name: "A", runs: 4, balls: 1 }, { name: "B", runs: 1, balls: 2 }] });
+  assert.deepEqual(p[1], { runs: 2, balls: 1, batsmen: [{ name: "B", runs: 0, balls: 0 }, { name: "C", runs: 2, balls: 1 }] });
+});
+
+test("partnershipsFromBalls returns null without crease ids (falls back to the batting-row method)", () => {
+  const balls = [{ id: 1, ball: 0.1, scoreboard: "S1", batsman_id: 100, score: { runs: 1, bye: 0, leg_bye: 0, noball: 0, is_wicket: false, ball: true } }] as Parameters<typeof partnershipsFromBalls>[0];
+  assert.equal(partnershipsFromBalls(balls, []), null);
 });
 
 test("all out: no unbroken partnership at the end", () => {
