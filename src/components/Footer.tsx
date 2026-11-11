@@ -126,6 +126,9 @@ export async function Footer() {
         <div className="flex flex-col gap-2 pb-8 text-[13px] text-white/55 sm:flex-row sm:items-center sm:justify-between">
           <p>© {year} {dict.nav.brand}. {t.rights}</p>
           <p>{t.data}</p>
+          <a href="https://www.digivanta.co/" target="_blank" rel="noopener noreferrer" className="transition hover:text-white">
+            Design By Digivanta
+          </a>
         </div>
       </div>
     </footer>
