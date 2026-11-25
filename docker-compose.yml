@@ -13,7 +13,8 @@ services:
     image: livescore
     env_file: .env.local
     ports:
-      - "3000:3000"
+      # host:container — set WEB_PORT in .env.local to a free port on a shared VPS
+      - "${WEB_PORT:-3000}:3000"
     restart: unless-stopped
 
   worker:
