@@ -1,0 +1,25 @@
+# Deploy with:  docker compose --env-file .env.local up -d --build
+# --env-file makes compose read your secrets for the NEXT_PUBLIC build args below,
+# and env_file injects every var into both containers at runtime.
+services:
+  web:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_FIREBASE_DATABASE_URL: ${NEXT_PUBLIC_FIREBASE_DATABASE_URL}
+        NEXT_PUBLIC_SANITY_PROJECT_ID: ${NEXT_PUBLIC_SANITY_PROJECT_ID}
+        NEXT_PUBLIC_SANITY_DATASET: ${NEXT_PUBLIC_SANITY_DATASET}
+        NEXT_PUBLIC_DISABLE_IMAGE_OPTIMIZATION: ${NEXT_PUBLIC_DISABLE_IMAGE_OPTIMIZATION}
+    image: livescore
+    env_file: .env.local
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  worker:
+    image: livescore          # reuses the image built by `web` (no second build)
+    command: npm run live-worker
+    env_file: .env.local
+    restart: unless-stopped
+    depends_on:
+      - web
