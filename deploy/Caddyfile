@@ -1,8 +1,12 @@
-# Add this block to the server's Caddyfile (usually /etc/caddy/Caddyfile),
+# Add these blocks to the server's Caddyfile (usually /etc/caddy/Caddyfile),
 # then reload:  sudo systemctl reload caddy
 # Caddy obtains and renews HTTPS automatically — no certbot needed.
-# Change the domain; the port must match WEB_PORT in .env.local.
+# The port must match WEB_PORT in .env.local.
 
-scores.yourdomain.com {
+livematch.co {
     reverse_proxy 127.0.0.1:3100
+}
+
+www.livematch.co {
+    redir https://livematch.co{uri} permanent
 }
