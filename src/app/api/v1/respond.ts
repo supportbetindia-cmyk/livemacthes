@@ -17,6 +17,7 @@ export async function json<T>(produce: () => Promise<T>): Promise<Response> {
     return Response.json(await produce(), { headers: CORS });
   } catch (e) {
     unstable_rethrow(e);
+    console.error("[api/v1] request failed:", e);
     return Response.json({ error: "Cricket data is temporarily unavailable. Try again shortly." }, { status: 503, headers: CORS });
   }
 }
