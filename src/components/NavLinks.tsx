@@ -14,8 +14,9 @@ export function LinkList({ links, pathname = "" }: { links: Links; pathname?: st
         key={href}
         href={href}
         // Active sections use a red underline in both navigation menus.
-        className={`whitespace-nowrap rounded-t-md border-b-2 px-3 py-2 text-[15px] transition-colors hover:bg-raised hover:text-foreground ${
-          active ? "border-brand font-bold text-foreground" : "border-transparent font-medium text-muted"
+        // Sits on the dark header, so the colours are white-based.
+        className={`whitespace-nowrap rounded-t-md border-b-2 px-3 py-2 text-[15px] transition-colors hover:bg-white/10 hover:text-white ${
+          active ? "border-brand font-bold text-white" : "border-transparent font-medium text-white/75"
         }`}
       >
         {label}

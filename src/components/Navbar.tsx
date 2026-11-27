@@ -7,7 +7,7 @@ import { MoreMenu } from "./MoreMenu";
 import { Icon } from "./Icon";
 import { BottomNavTabs, BottomTabs, type Tab } from "./BottomNav";
 
-const logo = process.env.LOGO_URL || "/live-matches-cricket-logo.png";
+// The header sits on the dark nav colour (like the footer), so it always shows the light-on-dark logo.
 const logoDark = process.env.LOGO_DARK_URL || "/live-matches-cricket-logo-dark.png";
 const external = (src: string) => /^https?:\/\//.test(src); // an off-site logo URL skips next/image optimization
 
@@ -32,7 +32,7 @@ export async function Navbar() {
         name="q"
         placeholder={t.searchShort}
         aria-label={t.search}
-        className="w-full rounded-full border border-border bg-raised py-2 pl-10 pr-4 text-sm text-foreground outline-none placeholder:text-muted focus:border-link"
+        className="w-full rounded-full border border-white/15 bg-white/10 py-2 pl-10 pr-4 text-sm text-white outline-none placeholder:text-white/60 focus:border-white/40"
       />
     </form>
   );
@@ -54,29 +54,19 @@ export async function Navbar() {
 
   return (
     <>
-    <header className="sticky top-0 z-20 border-b border-border bg-card text-foreground shadow-card">
-      <nav className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4">
+    <header className="sticky top-0 z-20 border-b border-nav-border bg-nav text-white shadow-card">
+      <nav className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-4">
         <Link href={`/${lang}`} className="shrink-0 rounded-md px-1">
-          {/* LOGO_URL / LOGO_DARK_URL (optional) override the logo per site; default to the bundled one. */}
-          <Image
-            src={logo}
-            alt={t.brand}
-            width={2172}
-            height={724}
-            sizes="(min-width: 1280px) 192px, (min-width: 640px) 144px, 112px"
-            loading="eager"
-            unoptimized={external(logo)}
-            className="h-auto w-28 dark:hidden sm:w-36 xl:w-48"
-          />
+          {/* LOGO_DARK_URL (optional) overrides the logo per site; defaults to the bundled one. */}
           <Image
             src={logoDark}
             alt={t.brand}
             width={2171}
             height={724}
-            sizes="(min-width: 1280px) 192px, (min-width: 640px) 144px, 112px"
+            sizes="(min-width: 1280px) 160px, (min-width: 640px) 144px, 112px"
             loading="eager"
             unoptimized={external(logoDark)}
-            className="hidden h-auto w-28 dark:block sm:w-36 xl:w-48"
+            className="h-auto w-28 sm:w-36 xl:w-40"
           />
         </Link>
 
@@ -97,7 +87,7 @@ export async function Navbar() {
         {/* Phone/tablet: navigation lives in the bottom tab bar; the top bar keeps only search */}
         <Link
           href={`/${lang}/search`}
-          className="ml-auto flex items-center gap-2 rounded-full border border-border px-4 py-1.5 text-sm font-medium lg:hidden"
+          className="ml-auto flex items-center gap-2 rounded-full border border-white/25 px-4 py-1.5 text-sm font-medium lg:hidden"
         >
           <Icon name="search" className="h-4 w-4" /> {t.searchShort}
         </Link>
