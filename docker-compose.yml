@@ -1,6 +1,6 @@
 # Deploy with:  docker compose --env-file .env.local up -d --build
 # --env-file makes compose read your secrets for the NEXT_PUBLIC build args below,
-# and env_file injects every var into both containers at runtime.
+# and env_file injects every var into the container at runtime.
 services:
   web:
     build:
@@ -19,10 +19,5 @@ services:
       - "127.0.0.1:${WEB_PORT:-3000}:3000"
     restart: unless-stopped
 
-  worker:
-    image: livescore          # reuses the image built by `web` (no second build)
-    command: npm run live-worker
-    env_file: .env.local
-    restart: unless-stopped
-    depends_on:
-      - web
+# Live scores are polled and streamed by the central API (live-score-api, GET /v1/live/stream) since phase 3b,
+# so there is no separate live-worker container any more.
